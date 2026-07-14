@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "name": "tailnet_status",
+    "description": "Report the state of the local tailnet: this node plus all peers with hostname, MagicDNS name, Tailscale IPv4/IPv6, OS, online flag, last seen, exit-node flags, and tags.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "onlineOnly": {
+          "type": "boolean",
+          "description": "Only include peers that are currently online (default: false)"
+        }
+      },
+      "required": []
+    }
+  }
+]
