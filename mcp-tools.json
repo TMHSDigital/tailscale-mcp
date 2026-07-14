@@ -12,5 +12,32 @@
       },
       "required": []
     }
+  },
+  {
+    "name": "generate_ssh_config",
+    "description": "Generate ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). Dry-run by default; write=true writes ~/.ssh/tailscale_dev_config; target=\"user_ssh_config\" edits ~/.ssh/config idempotently between managed markers.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "write": {
+          "type": "boolean",
+          "description": "Actually write the config (default: false = dry-run, text only)"
+        },
+        "target": {
+          "type": "string",
+          "enum": ["dedicated_file", "user_ssh_config"],
+          "description": "Write target: dedicated_file (default) or user_ssh_config (managed markers)"
+        },
+        "onlineOnly": {
+          "type": "boolean",
+          "description": "Only include peers that are currently online (default: false)"
+        },
+        "user": {
+          "type": "string",
+          "description": "Remote user to set on every Host block"
+        }
+      },
+      "required": []
+    }
   }
 ]
