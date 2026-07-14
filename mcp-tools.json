@@ -39,5 +39,47 @@
       },
       "required": []
     }
+  },
+  {
+    "name": "share_port",
+    "description": "Share a local port over the tailnet via Tailscale Serve (tailnet-only by default). WARNING: public=true switches to Funnel and exposes the port to the OPEN INTERNET. Returns the resulting URL(s).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "port": {"type": "number", "description": "Local port to share"},
+        "public": {"type": "boolean", "description": "Expose to the open internet via Funnel (default: false = tailnet-only Serve). DANGEROUS."},
+        "path": {"type": "string", "description": "HTTPS mount path on the serve endpoint (default: \"/\")"}
+      },
+      "required": ["port"]
+    }
+  },
+  {
+    "name": "share_status",
+    "description": "Report the active Tailscale Serve/Funnel sessions on this node.",
+    "inputSchema": {"type": "object", "properties": {}, "required": []}
+  },
+  {
+    "name": "stop_share",
+    "description": "Stop sharing. Without arguments clears the entire serve/funnel configuration; with httpsPort it turns off just that HTTPS serve endpoint.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "httpsPort": {"type": "number", "description": "HTTPS serve port to turn off (as shown in share_status). Omit to clear everything."}
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "ping_all",
+    "description": "Ping tailnet peers concurrently (bounded to 5, one ping each with timeout) and return a latency matrix: node, latency ms, path (direct vs DERP relay), or unreachable.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "count": {"type": "number", "description": "Ping attempts per peer (default: 1)"},
+        "timeoutMs": {"type": "number", "description": "Per-ping timeout in milliseconds (default: 5000)"},
+        "onlineOnly": {"type": "boolean", "description": "Only ping peers reported online (default: true)"}
+      },
+      "required": []
+    }
   }
 ]

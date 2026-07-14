@@ -276,23 +276,30 @@ export class CliProvider implements TailscaleProvider {
     if (opts.path && opts.path !== "/") args.push(`--set-path=${opts.path}`);
     args.push(String(opts.port));
 
-    const result = await this.run(args);
+    // On a tailnet without Serve/Funnel enabled the CLI prints an enablement
+    // URL and then BLOCKS polling for enablement (observed on 1.98.4), so the
+    // spawn needs a hard timeout and the message must be detected regardless
+    // of exit status.
+    const result = await this.run(args, { timeoutMs: 15000 });
+    const combined = result.stdout + result.stderr;
+    if (/not enabled on your tailnet|Funnel not available/i.test(combined)) {
+      const enableUrl = /https:\/\/login\.tailscale\.com\/f\/\S+/.exec(combined)?.[0];
+      throw new TailscaleError(
+        "SERVE_NOT_ENABLED",
+        `Tailscale ${subcmd} is not enabled on this tailnet.`,
+        `Enable HTTPS/${subcmd} in the Tailscale admin console${enableUrl ? `: ${enableUrl}` : ""}, then retry.`,
+      );
+    }
     if (result.status !== 0) {
-      const stderr = result.stderr.trim();
-      if (/not enabled on your tailnet|Funnel not available/i.test(stderr + result.stdout)) {
-        throw new TailscaleError(
-          "SERVE_NOT_ENABLED",
-          `Tailscale ${subcmd} is not enabled on this tailnet.`,
-          `Enable HTTPS/${subcmd} in the Tailscale admin console (the CLI prints an enablement URL), then retry.`,
-        );
-      }
       throw this.failFromCli(result, subcmd);
     }
 
     const raw = `${result.stdout}\n${result.stderr}`.trim();
-    const urls = [...raw.matchAll(/https?:\/\/\S+/g)].map((m) =>
-      m[0].replace(/[.,]$/, ""),
-    );
+    const urls = [...raw.matchAll(/https?:\/\/\S+/g)]
+      .map((m) => m[0].replace(/[.,]$/, ""))
+      // The CLI also prints the local proxy target (http://127.0.0.1:<port>);
+      // only the share endpoints belong in the result.
+      .filter((u) => !/https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(u));
     return { urls: [...new Set(urls)], public: isPublic, raw };
   }
 
@@ -304,7 +311,7 @@ export class CliProvider implements TailscaleProvider {
 
   async serveReset(port?: number): Promise<string> {
     const args =
-      port === undefined ? ["serve", "reset"] : ["serve", "--bg", `--https=${port}`, "off"];
+      port === undefined ? ["serve", "reset"] : ["serve", `--https=${port}`, "off"];
     const result = await this.run(args);
     if (result.status !== 0) throw this.failFromCli(result, "serve reset");
     return result.stdout.trim() || "serve configuration cleared";
