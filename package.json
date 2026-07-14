@@ -1,0 +1,21 @@
+{
+  "name": "@tmhsdigital/tailscale-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for safe programmatic access to the local Tailscale daemon: tailnet discovery, SSH config generation, port sharing via Serve/Funnel, and latency matrices.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {"tailscale-mcp": "dist/index.js"},
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "echo 'No build target yet'",
+    "test": "echo 'No tests yet' && exit 0",
+    "prepublishOnly": "npm run build"
+  },
+  "author": "TMHSDigital",
+  "license": "CC-BY-NC-ND-4.0",
+  "repository": {"type": "git", "url": "git+https://github.com/TMHSDigital/tailscale-mcp.git"},
+  "homepage": "https://github.com/TMHSDigital/tailscale-mcp#readme",
+  "bugs": {"url": "https://github.com/TMHSDigital/tailscale-mcp/issues"},
+  "keywords": ["mcp", "model-context-protocol", "developer-tools"],
+  "engines": {"node": ">=20.0.0"}
+}
