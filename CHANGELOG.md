@@ -4,6 +4,10 @@ All notable changes to Tailscale MCP will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.1] - 2026-07-14
+
+First published release: everything listed under 0.1.0 below ships in this version. (The v0.1.0 tag was consumed by the initial scaffold before the tool surface landed, so the first npm publish is 0.1.1.)
+
 ## [0.1.0] - Unreleased
 
 ### Added
