@@ -7,7 +7,7 @@
     "github": "https://github.com/TMHSDigital/tailscale-mcp"
   },
   "installSteps": [
-    "Install with <code>npx -y @tmhsdigital/tailscale-mcp</code>",
+    "Install with <code>npx -y @tmhs/tailscale-mcp</code>",
     "Add to your Claude Desktop or Cursor mcpServers config",
     "Restart your MCP client"
   ]

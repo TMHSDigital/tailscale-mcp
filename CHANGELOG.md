@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `tailnet_status` MCP tool: trimmed self + peers view (hostname, MagicDNS name, IPv4/IPv6, OS, online, last seen, exit-node flags, tags) with optional `onlineOnly` filter
 - MCP server entrypoint over stdio; package renamed to `@tmhs/tailscale-mcp`
 - Sanitized fixtures captured from a real tailnet (status running/stopped/needs-login, version)
+- README: install, per-tool usage with example outputs, agentic-workflow example, Funnel security notes
 - Initial project scaffold
 - CI/CD workflows (ci, release, publish, drift-check, pages, stale, label-sync)
 - GitHub Pages documentation site
