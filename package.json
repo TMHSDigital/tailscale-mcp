@@ -1,5 +1,5 @@
 {
-  "name": "@tmhsdigital/tailscale-mcp",
+  "name": "@tmhs/tailscale-mcp",
   "version": "0.1.0",
   "description": "MCP server for safe programmatic access to the local Tailscale daemon: tailnet discovery, SSH config generation, port sharing via Serve/Funnel, and latency matrices.",
   "type": "module",
@@ -7,15 +7,27 @@
   "bin": {"tailscale-mcp": "dist/index.js"},
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
-    "build": "echo 'No build target yet'",
-    "test": "echo 'No tests yet' && exit 0",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepublishOnly": "npm run build"
   },
+  "publishConfig": {"access": "public"},
   "author": "TMHSDigital",
   "license": "CC-BY-NC-ND-4.0",
   "repository": {"type": "git", "url": "git+https://github.com/TMHSDigital/tailscale-mcp.git"},
-  "homepage": "https://github.com/TMHSDigital/tailscale-mcp#readme",
+  "homepage": "https://tmhsdigital.github.io/tailscale-mcp/",
   "bugs": {"url": "https://github.com/TMHSDigital/tailscale-mcp/issues"},
-  "keywords": ["mcp", "model-context-protocol", "developer-tools"],
-  "engines": {"node": ">=20.0.0"}
+  "keywords": ["mcp", "model-context-protocol", "tailscale", "tailnet", "ssh", "developer-tools"],
+  "engines": {"node": ">=20.0.0"},
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
+  }
 }

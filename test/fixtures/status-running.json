@@ -1,0 +1,198 @@
+{
+  "Version": "1.98.4-t0000000000-g00000000000",
+  "TUN": true,
+  "BackendState": "Running",
+  "HaveNodeKey": true,
+  "AuthURL": "",
+  "TailscaleIPs": [
+    "100.101.1.10",
+    "fd7a:115c:a1e0::aaaa:1"
+  ],
+  "Self": {
+    "ID": "selfnode11CNTRL",
+    "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000001",
+    "HostName": "DEVPC",
+    "DNSName": "devpc.tail1234.ts.net.",
+    "OS": "windows",
+    "UserID": 1000000000000001,
+    "TailscaleIPs": [
+      "100.101.1.10",
+      "fd7a:115c:a1e0::aaaa:1"
+    ],
+    "AllowedIPs": [
+      "100.101.1.10/32",
+      "fd7a:115c:a1e0::aaaa:1/128"
+    ],
+    "Addrs": [
+      "203.0.113.10:50882",
+      "192.168.1.10:41641"
+    ],
+    "CurAddr": "",
+    "Relay": "nyc",
+    "PeerRelay": "",
+    "RxBytes": 0,
+    "TxBytes": 0,
+    "Created": "2026-03-05T04:36:11.890854781Z",
+    "LastWrite": "0001-01-01T00:00:00Z",
+    "LastSeen": "0001-01-01T00:00:00Z",
+    "LastHandshake": "0001-01-01T00:00:00Z",
+    "Online": true,
+    "ExitNode": false,
+    "ExitNodeOption": false,
+    "Active": false,
+    "PeerAPIURL": [
+      "http://100.101.1.10:51308"
+    ],
+    "TaildropTarget": 0,
+    "NoFileSharingReason": "",
+    "Capabilities": [
+      "https://tailscale.com/cap/ssh"
+    ],
+    "InNetworkMap": true,
+    "InMagicSock": false,
+    "InEngine": false,
+    "KeyExpiry": "2026-09-01T04:36:11Z"
+  },
+  "Health": [],
+  "MagicDNSSuffix": "tail1234.ts.net",
+  "CurrentTailnet": {
+    "Name": "user@example.com",
+    "MagicDNSSuffix": "tail1234.ts.net",
+    "MagicDNSEnabled": true
+  },
+  "CertDomains": null,
+  "Peer": {
+    "nodekey:0000000000000000000000000000000000000000000000000000000000000002": {
+      "ID": "peer1node11CNTRL",
+      "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000002",
+      "HostName": "raspi",
+      "DNSName": "raspi.tail1234.ts.net.",
+      "OS": "linux",
+      "UserID": 1000000000000001,
+      "TailscaleIPs": [
+        "100.101.1.20",
+        "fd7a:115c:a1e0::aaaa:2"
+      ],
+      "AllowedIPs": [
+        "100.101.1.20/32",
+        "fd7a:115c:a1e0::aaaa:2/128"
+      ],
+      "Addrs": null,
+      "CurAddr": "",
+      "Relay": "nyc",
+      "PeerRelay": "",
+      "RxBytes": 0,
+      "TxBytes": 1560,
+      "Created": "2026-03-05T22:50:07.133176329Z",
+      "LastWrite": "2026-07-13T19:58:54.3738006-04:00",
+      "LastSeen": "2026-07-13T23:36:53.1Z",
+      "LastHandshake": "2026-07-13T23:36:53.1Z",
+      "Online": true,
+      "ExitNode": false,
+      "ExitNodeOption": true,
+      "Active": true,
+      "PeerAPIURL": [
+        "http://100.101.1.20:34058"
+      ],
+      "TaildropTarget": 5,
+      "NoFileSharingReason": "",
+      "sshHostKeys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE"
+      ],
+      "InNetworkMap": true,
+      "InMagicSock": true,
+      "InEngine": true,
+      "KeyExpiry": "2026-09-01T22:50:07Z"
+    },
+    "nodekey:0000000000000000000000000000000000000000000000000000000000000003": {
+      "ID": "peer2node11CNTRL",
+      "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000003",
+      "HostName": "localhost",
+      "DNSName": "phone.tail1234.ts.net.",
+      "OS": "iOS",
+      "UserID": 1000000000000001,
+      "TailscaleIPs": [
+        "100.101.1.30",
+        "fd7a:115c:a1e0::aaaa:3"
+      ],
+      "AllowedIPs": [
+        "100.101.1.30/32",
+        "fd7a:115c:a1e0::aaaa:3/128"
+      ],
+      "Addrs": null,
+      "CurAddr": "",
+      "Relay": "nyc",
+      "PeerRelay": "",
+      "RxBytes": 0,
+      "TxBytes": 0,
+      "Created": "2026-05-16T00:27:31.849611269Z",
+      "LastWrite": "0001-01-01T00:00:00Z",
+      "LastSeen": "2026-07-13T23:57:06.1Z",
+      "LastHandshake": "0001-01-01T00:00:00Z",
+      "Online": false,
+      "ExitNode": false,
+      "ExitNodeOption": false,
+      "Active": false,
+      "PeerAPIURL": [
+        "http://100.101.1.30:38961"
+      ],
+      "TaildropTarget": 5,
+      "NoFileSharingReason": "",
+      "InNetworkMap": true,
+      "InMagicSock": true,
+      "InEngine": false,
+      "KeyExpiry": "2026-11-12T00:27:31Z"
+    },
+    "nodekey:0000000000000000000000000000000000000000000000000000000000000004": {
+      "ID": "peer3node11CNTRL",
+      "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000004",
+      "HostName": "exitbox",
+      "DNSName": "exitbox.tail1234.ts.net.",
+      "OS": "linux",
+      "UserID": 1000000000000001,
+      "TailscaleIPs": [
+        "100.101.1.40",
+        "fd7a:115c:a1e0::aaaa:4"
+      ],
+      "AllowedIPs": [
+        "0.0.0.0/0",
+        "::/0",
+        "100.101.1.40/32",
+        "fd7a:115c:a1e0::aaaa:4/128"
+      ],
+      "Addrs": null,
+      "CurAddr": "",
+      "Relay": "fra",
+      "PeerRelay": "",
+      "RxBytes": 0,
+      "TxBytes": 0,
+      "Created": "2026-04-01T00:00:00Z",
+      "LastWrite": "0001-01-01T00:00:00Z",
+      "LastSeen": "2026-07-13T22:00:00Z",
+      "LastHandshake": "2026-07-13T22:00:00Z",
+      "Online": true,
+      "ExitNode": false,
+      "ExitNodeOption": true,
+      "Active": false,
+      "Tags": ["tag:server", "tag:exit"],
+      "PeerAPIURL": [
+        "http://100.101.1.40:40000"
+      ],
+      "TaildropTarget": 0,
+      "NoFileSharingReason": "",
+      "InNetworkMap": true,
+      "InMagicSock": true,
+      "InEngine": false,
+      "KeyExpiry": "2026-10-01T00:00:00Z"
+    }
+  },
+  "User": {
+    "1000000000000001": {
+      "ID": 1000000000000001,
+      "LoginName": "user@example.com",
+      "DisplayName": "Example User",
+      "ProfilePicURL": ""
+    }
+  },
+  "ClientVersion": null
+}
