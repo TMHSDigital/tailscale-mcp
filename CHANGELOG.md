@@ -4,6 +4,18 @@ All notable changes to Tailscale MCP will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.2] - 2026-07-14
+
+### Changed
+
+- README badges: dynamic npm version badge and CI status badge (the version badge was hardcoded to 0.1.0)
+- SECURITY.md now directs reports to GitHub private vulnerability reporting instead of a placeholder email
+- PR auto-labeling matches this repo's paths (`src/`, tests) instead of inherited `skills/`/`rules/` paths
+
+### Added
+
+- Issue templates (bug report, feature request) and a pull request template
+
 ## [0.1.1] - 2026-07-14
 
 First published release: everything listed under 0.1.0 below ships in this version. (The v0.1.0 tag was consumed by the initial scaffold before the tool surface landed, so the first npm publish is 0.1.1.)

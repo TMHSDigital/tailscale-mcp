@@ -30,12 +30,12 @@ jobs:
         run: |
           LABELS=""
 
-          if echo "$FILES" | grep -q "^skills/"; then
-            LABELS="$LABELS skills"
+          if echo "$FILES" | grep -q "^src/"; then
+            LABELS="$LABELS code"
           fi
 
-          if echo "$FILES" | grep -q "^rules/"; then
-            LABELS="$LABELS rules"
+          if echo "$FILES" | grep -qE "^(test|tests)/|^src/__tests__/"; then
+            LABELS="$LABELS tests"
           fi
 
           if echo "$FILES" | grep -q "^docs/"; then
