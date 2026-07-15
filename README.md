@@ -3,7 +3,8 @@
 **MCP server for safe programmatic access to the local Tailscale daemon: tailnet discovery, SSH config generation, port sharing via Serve/Funnel, and latency matrices.**
 
 ![License: CC-BY-NC-ND-4.0](https://img.shields.io/badge/license-CC--BY--NC--ND--4.0-green)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+[![npm version](https://img.shields.io/npm/v/%40tmhs%2Ftailscale-mcp)](https://www.npmjs.com/package/@tmhs/tailscale-mcp)
+[![CI](https://github.com/TMHSDigital/tailscale-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/TMHSDigital/tailscale-mcp/actions/workflows/ci.yml)
 
 ---
 

@@ -6,3 +6,4 @@ build/
 Thumbs.db
 *.log
 _harness.mjs
+CLAUDE.md

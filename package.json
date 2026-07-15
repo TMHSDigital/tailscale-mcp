@@ -1,6 +1,6 @@
 {
   "name": "@tmhs/tailscale-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server for safe programmatic access to the local Tailscale daemon: tailnet discovery, SSH config generation, port sharing via Serve/Funnel, and latency matrices.",
   "type": "module",
   "main": "dist/index.js",

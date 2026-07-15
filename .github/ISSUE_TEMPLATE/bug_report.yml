@@ -1,0 +1,43 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Call tool `share_port` with `{...}`
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: Claude Desktop, Cursor, Claude Code, ...
+  - type: input
+    id: os
+    attributes:
+      label: OS and Tailscale version
+      placeholder: "Windows 11, tailscale 1.80.x"
+  - type: textarea
+    id: error
+    attributes:
+      label: Tool error output
+      description: The structured error (`code` / `remedy`) if one was returned.
+      render: json

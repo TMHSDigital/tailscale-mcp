@@ -6,7 +6,7 @@ If you discover a security vulnerability in Tailscale MCP, please report it resp
 
 **Do not** open a public issue for security vulnerabilities.
 
-Instead, email contact@users.noreply.github.com with:
+Instead, use [GitHub private vulnerability reporting](https://github.com/TMHSDigital/tailscale-mcp/security/advisories/new) ("Report a vulnerability" under the Security tab) and include:
 
 1. Description of the vulnerability
 2. Steps to reproduce
