@@ -38,6 +38,8 @@ No new credentials, no new trust boundary. Ordered by value-per-effort.
 - [ ] **`dns_status`** — MagicDNS on/off, resolvers, search domains, per-node overrides.
 - [ ] **Serve improvements** — TCP forwarding mode (`share_port {"proto": "tcp"}`), multiple simultaneous shares, idempotent re-share (same port updates instead of erroring). `share_status` grows to enumerate all active endpoints.
 - [ ] **Taildrop send** — `send_file(peer, path)` via `tailscale file cp`. Receive is deferred: the `file-put` LocalAPI path is medium-stability and sandbox-entangled per the research.
+- [ ] **Input hardening pass** — validate every string input that reaches a shell or config file: reject leading-dash values (`user: "-i"` in `generate_ssh_config` — the exact shape of TS-2026-009's Tailscale SSH injection), constrain hostnames/paths to safe character sets, and add adversarial-input tests to the suite.
+- [ ] **`diagnose` tool** — one-call connectivity triage for agents: chains status → ping → netcheck against a target node and returns an *interpreted* result (`"peer online but relayed via DERP fra; UDP blocked by NAT"`), not three raw payloads. The agentic counterpart to eyeballing three tool outputs.
 - [ ] **LocalAPI provider — narrow scope**: `/localapi/v0/status` and `/localapi/v0/whois` only — the two high-stability endpoints (the CLI and GUIs depend on them). The LocalAPI as a whole is officially unstable, so `CliProvider` stays the default everywhere else and the automatic fallback for these. Platform IPC handled natively: Unix socket (Linux), ACL'd named pipe (Windows), sameuserproof (macOS).
   *Done when:* `ProviderManager` selects per-capability with fallback on connection failure; integration paths covered by fixtures per platform.
 - [ ] **`whois` tool** — resolve a tailnet IP to node + user identity ("who is hitting my shared port"). Depends on the LocalAPI provider; also the building block for identity-gated execution in v0.4.
@@ -68,6 +70,28 @@ A new trust boundary: the Admin API needs OAuth client credentials. Everything h
 - [ ] **Docs site completeness** — per-tool reference (generated from `mcp-tools.json`), security model page (trust boundaries, env flags, what the server will never do), provider architecture page.
 - [ ] **Stability policy** — semver commitment; tool schemas are API: breaking schema changes only in majors, documented deprecation window.
 - [ ] **Distribution beyond npm** — signed Docker image with SBOM (Docker MCP Catalog requirement), Smithery listing (requires Streamable HTTP — see deferred), mcp.so, standalone binaries (Windows/macOS/Linux), one-click configs for Claude Desktop / Claude Code / Cursor. Each channel gated on a license-compatibility check first (CC-BY-NC-ND).
+
+## v1.x — Post-1.0 horizon (exploratory)
+
+Directions worth holding, not committing to. Each gets promoted into a numbered train only when its prerequisite lands or demand shows up in issues.
+
+- [ ] **Tailnet observability tools** — device posture evaluation and audit/configuration log reads via the Admin API (read-only; pairs naturally with `TAILSCALE_MCP_READONLY=1` deployments used as monitoring agents)
+- [ ] **Webhook management** — register/list/rotate tailnet webhook endpoints via the Admin API. Managing webhooks is commoditized per the research; the interesting half is *consuming* them, which needs a listening endpoint and therefore waits on a remote-deployment story (see Streamable HTTP, deferred).
+- [ ] **Workload identity federation** — passwordless OIDC token exchange (GitHub Actions / GitLab CI authenticate to the tailnet with native tokens, no static secrets). The research's gap table says *no* MCP server offers this; it primarily serves the CI/GitOps audience, so it stays post-1.0 unless team demand pulls it forward.
+- [ ] **Tailscale Services tools** — the 2026 Admin API endpoints for virtual, node-agnostic tailnet destinations; watch for API stabilization.
+- [ ] **Declarative daemon config** — read/apply `tailscaled` JSON config via `/localapi/v0/reload-config` (medium-stability endpoint; dry-run diff first, in keeping with house style).
+- [ ] **Split-DNS writes** — MagicDNS/search-path/nameserver *configuration* (v0.2's `dns_status` is read-only); mutating DNS is high blast-radius, so it needs the v0.3 permission-tier machinery plus before/after state.
+- [ ] **Taildrop receive** — promoted from deferred if/when the LocalAPI `file-put` surface stabilizes.
+
+## Cross-cutting — security hardening (every release)
+
+Standing workstream, not a milestone; informed by Tailscale's own CVE history in the research.
+
+- Never interpolate tool inputs into shell strings — args arrays only (already the case; enforced by test)
+- Adversarial-input tests ride along with every new tool (leading-dash, path traversal, oversized inputs)
+- Fixture sanitizer required before any captured tailnet data lands in the repo
+- Structured errors must never echo credentials or key material, including inside `remedy` strings
+- Review each Tailscale security bulletin (TS-xxxx-xxx) for exposure through our tool surface; note the disposition in the changelog when relevant
 
 ## Deliberately skipped or deferred
 
