@@ -47,3 +47,38 @@ jobs:
       - name: Publish to npm
         if: steps.pub.outputs.skip == 'false'
         run: npm publish --provenance --access public
+
+      # List the release in the official MCP Registry. The registry checks that
+      # the npm package's mcpName matches server.json and reads npm, so this
+      # waits until npm serves the version. It runs whenever the registry lacks
+      # this version, so a re-dispatch also repairs a release whose listing
+      # failed. Auth is GitHub OIDC (id-token: write), which grants the
+      # io.github.TMHSDigital/* namespace; no secret. mcp-publisher is pinned
+      # and checksum-verified (the hash is from the release's checksums file).
+      - name: Publish to the MCP Registry
+        env:
+          MCP_PUBLISHER_VERSION: "1.8.4"
+          MCP_PUBLISHER_SHA256: 5dc2fd415369c73551259f31cd33e2aacc9e0d1021e7f08fef1492d93b781628
+        run: |
+          set -euo pipefail
+          v=$(node -p "require('./package.json').version")
+          name=$(jq -r .name server.json)
+          enc=$(jq -rn --arg n "$name" '$n | @uri')
+          if curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers/${enc}/versions" 2>/dev/null \
+            | jq -e --arg v "$v" '[.servers[] | (.server // .) | select(.version == $v)] | length > 0' >/dev/null; then
+            echo "$name $v is already in the MCP Registry."
+            exit 0
+          fi
+          pkg=$(node -p "require('./package.json').name")
+          for i in $(seq 1 30); do
+            if [ "$(npm view "$pkg@$v" version --prefer-online 2>/dev/null)" = "$v" ]; then break; fi
+            echo "Waiting for npm to serve $pkg@$v ($i/30)..."
+            sleep 10
+          done
+          tarball=mcp-publisher_linux_amd64.tar.gz
+          curl -fsSL -o "$tarball" "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/${tarball}"
+          echo "${MCP_PUBLISHER_SHA256}  ${tarball}" | sha256sum -c -
+          tar xzf "$tarball" mcp-publisher
+          ./mcp-publisher validate server.json
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

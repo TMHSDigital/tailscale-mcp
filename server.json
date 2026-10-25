@@ -1,0 +1,52 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.TMHSDigital/tailscale-mcp",
+  "title": "Tailscale MCP",
+  "description": "Let AI agents see and use your tailnet: status, SSH config, Serve/Funnel sharing, ping matrix",
+  "repository": {
+    "url": "https://github.com/TMHSDigital/tailscale-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://tmhsdigital.github.io/tailscale-mcp/",
+  "version": "0.4.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@tmhs/tailscale-mcp",
+      "version": "0.4.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TAILSCALE_MCP_ALLOW_FUNNEL",
+          "description": "Set to 1 to let share_port expose a port to the open internet with Funnel (off by default)",
+          "format": "boolean",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "TAILSCALE_MCP_READONLY",
+          "description": "Set to 1 for monitoring only: no share tools, and no SSH config writes",
+          "format": "boolean",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "TAILSCALE_MCP_BIN",
+          "description": "Path to the tailscale binary if it is not on PATH or in the default install location",
+          "format": "filepath",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "TAILSCALE_MCP_TIMEOUT_MS",
+          "description": "Per-call timeout for tailscale commands in milliseconds (default 10000)",
+          "format": "number",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

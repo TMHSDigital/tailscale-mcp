@@ -12,3 +12,5 @@ CLAUDE.md
 docs/mcp-tools.json
 # Browser automation scratch output
 .playwright-mcp/
+# Built Claude Desktop extension
+mcpb-out/

@@ -8,17 +8,22 @@
 
 ---
 
-Gives agents and developer tools a safe, structured window into the local Tailscale daemon over stdio. It shells out to the `tailscale` CLI (resolved from PATH, with a Windows fallback to the default install location) and never handles auth keys or tailnet credentials: the CLI talks to the already-authenticated local daemon.
+Gives agents and developer tools a safe, structured window into the local Tailscale daemon over stdio. It shells out to the `tailscale` CLI (resolved from PATH, with fallbacks to the default install locations on Windows and macOS) and never handles auth keys or tailnet credentials: the CLI talks to the already-authenticated local daemon.
 
 When the binary is missing, the daemon is stopped, or the device needs login, every tool returns a structured error with a `code` and the exact `remedy` command instead of throwing.
 
 ## Installation
 
-```bash
-npx -y @tmhs/tailscale-mcp
-```
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=tailscale&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkB0bWhzL3RhaWxzY2FsZS1tY3AiXX0%3D)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_server-0098FF?logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=tailscale&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40tmhs%2Ftailscale-mcp%22%5D%7D)
+[![Download for Claude Desktop](https://img.shields.io/badge/Claude_Desktop-Download_extension-16222D)](https://github.com/TMHSDigital/tailscale-mcp/releases/latest/download/tailscale-mcp.mcpb)
 
-Add to your MCP client configuration (Claude Desktop, Cursor, etc.):
+- **Claude Code:** `claude mcp add tailscale -- npx -y @tmhs/tailscale-mcp`
+- **Claude Desktop:** download [`tailscale-mcp.mcpb`](https://github.com/TMHSDigital/tailscale-mcp/releases/latest/download/tailscale-mcp.mcpb) from the latest release and open it. The install dialog has switches for read-only mode and Funnel.
+- **Cursor / VS Code:** use the buttons above.
+- **MCP Registry:** listed in the official MCP Registry as `io.github.TMHSDigital/tailscale-mcp`, so registry-aware clients and catalogs can find it.
+
+Or add it to any MCP client's configuration by hand:
 
 ```json
 {

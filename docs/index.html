@@ -269,8 +269,12 @@
             <pre><code>claude mcp add tailscale -- npx -y @tmhs/tailscale-mcp</code></pre>
           </div>
           <div class="client">
-            <h3>Claude Desktop and Cursor</h3>
-            <p>Add to <code>claude_desktop_config.json</code> or <code>~/.cursor/mcp.json</code>, then restart the app.</p>
+            <h3>Claude Desktop</h3>
+            <p><a href="https://github.com/TMHSDigital/tailscale-mcp/releases/latest/download/tailscale-mcp.mcpb">Download the extension</a> and open it. The install dialog has switches for read-only mode and public sharing, and nothing else to configure.</p>
+          </div>
+          <div class="client">
+            <h3>Cursor</h3>
+            <p><a href="https://cursor.com/install-mcp?name=tailscale&amp;config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkB0bWhzL3RhaWxzY2FsZS1tY3AiXX0%3D">Add to Cursor</a>, or add this to <code>~/.cursor/mcp.json</code> (the same block works in Claude Desktop's <code>claude_desktop_config.json</code>).</p>
 <pre><code>{
   "mcpServers": {
     "tailscale": {
@@ -282,7 +286,7 @@
           </div>
           <div class="client">
             <h3>VS Code</h3>
-            <p>Add to <code>.vscode/mcp.json</code> in your workspace.</p>
+            <p><a href="https://vscode.dev/redirect/mcp/install?name=tailscale&amp;config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40tmhs%2Ftailscale-mcp%22%5D%7D">Install in VS Code</a>, or add this to <code>.vscode/mcp.json</code> in your workspace.</p>
 <pre><code>{
   "servers": {
     "tailscale": {
@@ -299,7 +303,7 @@
 <pre><code>"env": { "TAILSCALE_MCP_ALLOW_FUNNEL": "1" }</code></pre>
           </div>
         </div>
-        <p class="requirements">Requires Node 22 or newer and a Tailscale client that's installed and logged in. On macOS the CLI is found inside Tailscale.app automatically. All settings are listed in the <a href="https://github.com/TMHSDigital/tailscale-mcp#configuration-reference">configuration reference</a>.</p>
+        <p class="requirements">Requires Node 22 or newer and a Tailscale client that's installed and logged in. On macOS the CLI is found inside Tailscale.app automatically. All settings are listed in the <a href="https://github.com/TMHSDigital/tailscale-mcp#configuration-reference">configuration reference</a>. The server is also in the official MCP Registry as <code>io.github.TMHSDigital/tailscale-mcp</code>.</p>
       </section>
 
       <section id="tools" aria-labelledby="tools-title">

@@ -38,6 +38,10 @@ jobs:
       - run: npm test
       # Pack, install the tarball into a clean project, and speak MCP to it.
       - run: npm run test:packed
+      # The Claude Desktop bundle is built on release; build it here too so a
+      # manifest problem fails before merge rather than after tagging.
+      - if: matrix.os == 'ubuntu-latest' && matrix.node-version == 24
+        run: npm run build:mcpb
 
   audit:
     name: npm audit (runtime dependencies)

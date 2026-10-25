@@ -63,3 +63,25 @@ jobs:
           # publish.yml is idempotent (skips an already-published version), so a
           # duplicate dispatch is harmless.
           gh workflow run publish.yml --ref main
+
+      # Attach the one-click Claude Desktop extension (.mcpb) to the release.
+      # It does not depend on npm, so it ships even if the npm publish fails.
+      # The file name is stable, so releases/latest/download/tailscale-mcp.mcpb
+      # always points at the newest bundle.
+      - name: Set up Node for the bundle
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build and attach the .mcpb bundle
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          npm run build:mcpb -- mcpb-out
+          gh release upload "v${{ steps.ver.outputs.version }}" mcpb-out/tailscale-mcp.mcpb --clobber

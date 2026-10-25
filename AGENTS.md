@@ -14,6 +14,9 @@ This is an MCP server. It contains:
 - **`src/__tests__/`** -- vitest suites; offline, with a mocked CLI runner
 - **`package.json`** -- npm package manifest (version source of truth)
 - **`mcp-tools.json`** -- generated from the registered tools (`npm run gen:tools`); never edit by hand
+- **`server.json`** -- the official MCP Registry entry (`io.github.TMHSDigital/tailscale-mcp`); its version is synced by `npm version` and published by `publish.yml`
+- **`scripts/`** -- `smoke-packed.mjs` (`npm run test:packed`), `build-mcpb.mjs` + `mcpb-manifest.mjs` (`npm run build:mcpb`, the Claude Desktop extension attached to each release), `sync-version.mjs`, and `og-card.html`
+- **`src/__tests__/contract/`** -- tests against the real tailscale binary (`npm run test:contract`, weekly in `contract.yml`); not part of `npm test`
 - **`docs/`** -- documentation and GitHub Pages site
 - **`CHANGELOG.md`** -- release history
 
