@@ -4,7 +4,10 @@ This is a mcp-server repository for Tailscale MCP development.
 
 ## Project structure
 
-- `src/` -- TypeScript source
+- `src/` -- TypeScript source (`src/index.ts` entry point, `src/config.ts` env parsing)
+- `src/providers/` -- `TailscaleProvider` interface (`types.ts`) and `CliProvider`
+- `src/tools/` -- MCP tools, registered with `registerTool` (title, annotations, output schema)
+- `src/__tests__/` -- vitest suites, offline with a mocked CLI runner
 - `package.json` -- npm package manifest
 
 ## Conventions
@@ -13,3 +16,4 @@ This is a mcp-server repository for Tailscale MCP development.
 - Bump the version in package.json in your PR; CI tags and publishes it
 - mcp-tools.json is generated: run `npm run gen:tools` after changing a tool
 - Provider adapters live in src/providers/; tools live in src/tools/
+- Pin GitHub Actions by commit SHA with a version comment

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./index.js";
-import { fail, ok } from "./helpers.js";
+import { fail, ok, READ_ONLY } from "./helpers.js";
+import { sharePortOutput, shareStatusOutput, stopShareOutput } from "./schemas.js";
 import { ALLOW_FUNNEL_ENV_VAR } from "../config.js";
 import { DEFAULT_HTTPS_PORT, TailscaleError, type ServeStatus } from "../providers/types.js";
 
@@ -44,13 +45,19 @@ export function summarizeServeStatus(status: ServeStatus) {
 const mountKey = (httpsPort: number, path: string) => `${httpsPort}${path}`;
 
 export function register(server: McpServer, ctx: ToolContext): void {
-  server.tool(
+  server.registerTool(
     "share_status",
-    "Report the active Tailscale Serve/Funnel sessions on this node: one entry per " +
-      "endpoint with its URL, serve port, mount path, proxied target, and a public flag " +
-      "that is true when Funnel exposes it to the open internet. publicExposure is " +
-      "true when anything is public.",
-    {},
+    {
+      title: "Share status",
+      description:
+        "Report the active Tailscale Serve/Funnel sessions on this node: one entry per " +
+        "endpoint with its URL, serve port, mount path, proxied target, and a public flag " +
+        "that is true when Funnel exposes it to the open internet. publicExposure is " +
+        "true when anything is public.",
+      inputSchema: {},
+      outputSchema: shareStatusOutput,
+      annotations: READ_ONLY,
+    },
     async () => {
       try {
         return ok(summarizeServeStatus(await ctx.provider.serveStatus()));
@@ -67,30 +74,43 @@ export function register(server: McpServer, ctx: ToolContext): void {
   const created = new Map<string, { httpsPort: number; path: string }>();
   const allowFunnel = ctx.allowFunnel === true;
 
-  server.tool(
+  server.registerTool(
     "share_port",
-    "Share a local port over the tailnet via Tailscale Serve (tailnet-only by " +
-      "default). WARNING: setting public=true switches to Funnel and exposes the " +
-      "port to the OPEN INTERNET — anyone with the URL can reach it. Only set " +
-      "public=true when internet exposure is explicitly intended. " +
-      (allowFunnel
-        ? ""
-        : `Funnel is DISABLED on this server: public=true returns FUNNEL_DISABLED unless ` +
-          `the user sets ${ALLOW_FUNNEL_ENV_VAR}=1. `) +
-      "Returns the resulting URL(s).",
     {
-      port: z.number().int().min(1).max(65535).describe("Local port to share"),
-      public: z
-        .boolean()
-        .optional()
-        .describe(
-          "Expose to the open internet via Funnel (default: false = tailnet-only Serve). " +
-            "DANGEROUS: public=true makes the port reachable by anyone on the internet." +
-            (allowFunnel ? "" : ` Disabled unless ${ALLOW_FUNNEL_ENV_VAR}=1.`),
-        ),
-      path: mountPath
-        .optional()
-        .describe('HTTPS mount path on the serve endpoint, e.g. "/api" (default: "/")'),
+      title: "Share a local port",
+      description:
+        "Share a local port over the tailnet via Tailscale Serve (tailnet-only by " +
+        "default). WARNING: setting public=true switches to Funnel and exposes the " +
+        "port to the OPEN INTERNET — anyone with the URL can reach it. Only set " +
+        "public=true when internet exposure is explicitly intended. " +
+        (allowFunnel
+          ? ""
+          : `Funnel is DISABLED on this server: public=true returns FUNNEL_DISABLED unless ` +
+            `the user sets ${ALLOW_FUNNEL_ENV_VAR}=1. `) +
+        "Returns the resulting URL(s).",
+      inputSchema: {
+        port: z.number().int().min(1).max(65535).describe("Local port to share"),
+        public: z
+          .boolean()
+          .optional()
+          .describe(
+            "Expose to the open internet via Funnel (default: false = tailnet-only Serve). " +
+              "DANGEROUS: public=true makes the port reachable by anyone on the internet." +
+              (allowFunnel ? "" : ` Disabled unless ${ALLOW_FUNNEL_ENV_VAR}=1.`),
+          ),
+        path: mountPath
+          .optional()
+          .describe('HTTPS mount path on the serve endpoint, e.g. "/api" (default: "/")'),
+      },
+      outputSchema: sharePortOutput,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        // Sharing the same port at the same path again leaves the same config.
+        idempotentHint: true,
+        // Funnel reaches the open internet; only possible when it is allowed.
+        openWorldHint: allowFunnel,
+      },
     },
     async ({ port, public: isPublic, path }) => {
       try {
@@ -121,36 +141,49 @@ export function register(server: McpServer, ctx: ToolContext): void {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "stop_share",
-    "Stop sharing. Name exactly one target: httpsPort and/or path turns off that one " +
-      "mount (httpsPort is the serve port shown in share_status, typically 443, not the " +
-      "proxied local port; path is the mount path given to share_port, default \"/\"); " +
-      "mine=true stops only the shares this server created in this session; all=true " +
-      "clears the entire serve/funnel configuration, including shares set up outside " +
-      "this server. With no arguments nothing is stopped and the active endpoints are " +
-      "listed. Returns what was removed and what remains.",
     {
-      httpsPort: z
-        .number()
-        .int()
-        .min(1)
-        .max(65535)
-        .optional()
-        .describe("HTTPS serve port of the mount to turn off (default 443 when path is given)"),
-      path: mountPath
-        .optional()
-        .describe('Mount path to turn off, as passed to share_port (default: "/")'),
-      mine: z
-        .boolean()
-        .optional()
-        .describe("Stop only the shares created by share_port in this session"),
-      all: z
-        .boolean()
-        .optional()
-        .describe(
-          "Clear the ENTIRE serve/funnel config, including shares not created by this server",
-        ),
+      title: "Stop sharing",
+      description:
+        "Stop Serve/Funnel shares: one mount, the shares this server created, or all of " +
+        "them, reporting what was removed. Name exactly one target: httpsPort and/or " +
+        "path turns off that one " +
+        "mount (httpsPort is the serve port shown in share_status, typically 443, not the " +
+        "proxied local port; path is the mount path given to share_port, default \"/\"); " +
+        "mine=true stops only the shares this server created in this session; all=true " +
+        "clears the entire serve/funnel configuration, including shares set up outside " +
+        "this server. With no arguments nothing is stopped and the active endpoints are " +
+        "listed. Returns what was removed and what remains.",
+      inputSchema: {
+        httpsPort: z
+          .number()
+          .int()
+          .min(1)
+          .max(65535)
+          .optional()
+          .describe("HTTPS serve port of the mount to turn off (default 443 when path is given)"),
+        path: mountPath
+          .optional()
+          .describe('Mount path to turn off, as passed to share_port (default: "/")'),
+        mine: z
+          .boolean()
+          .optional()
+          .describe("Stop only the shares created by share_port in this session"),
+        all: z
+          .boolean()
+          .optional()
+          .describe(
+            "Clear the ENTIRE serve/funnel config, including shares not created by this server",
+          ),
+      },
+      outputSchema: stopShareOutput,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ httpsPort, path, mine, all }) => {
       try {

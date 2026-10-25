@@ -4,7 +4,8 @@ import { join } from "path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./index.js";
-import { fail, ok } from "./helpers.js";
+import { fail, ok, READ_ONLY } from "./helpers.js";
+import { sshConfigOutput } from "./schemas.js";
 import { TailscaleError } from "../providers/types.js";
 import { READONLY_ENV_VAR } from "../config.js";
 import {
@@ -63,40 +64,55 @@ async function readConfig(path: string): Promise<string | null> {
 export function register(server: McpServer, ctx: ToolContext): void {
   const sshDir = () => ctx.sshDir ?? join(homedir(), ".ssh");
 
-  server.tool(
+  server.registerTool(
     "generate_ssh_config",
-    "Generate ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, " +
-      "Tailscale IP fallback). Dry-run by default: returns the generated config text " +
-      "only and writes nothing. With write=true it writes a dedicated file " +
-      "(~/.ssh/tailscale_dev_config) and returns instructions for adding an Include " +
-      "line to ~/.ssh/config (never applied automatically). Direct editing of " +
-      "~/.ssh/config itself additionally requires target=\"user_ssh_config\" and is " +
-      "idempotent between managed markers, never touching content outside them." +
-      (ctx.readOnly ? " This server is read-only: write=true is refused." : ""),
     {
-      write: z
-        .boolean()
-        .optional()
-        .describe("Actually write the config (default: false = dry-run, text only)"),
-      target: z
-        .enum(["dedicated_file", "user_ssh_config"])
-        .optional()
-        .describe(
-          'Write target: "dedicated_file" (default, ~/.ssh/tailscale_dev_config) or ' +
-            '"user_ssh_config" (edit ~/.ssh/config between managed markers)',
-        ),
-      onlineOnly: z
-        .boolean()
-        .optional()
-        .describe("Only include peers that are currently online (default: false)"),
-      includeShared: z
-        .boolean()
-        .optional()
-        .describe(
-          "Include nodes of users this node is shared with (default: false). " +
-            "Mullvad exit nodes are always skipped.",
-        ),
-      user: z.string().optional().describe("Remote user to set on every Host block"),
+      title: "Generate SSH config",
+      description:
+        "Generate ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, " +
+        "Tailscale IP fallback). Dry-run by default: returns the generated config text " +
+        "only and writes nothing. With write=true it writes a dedicated file " +
+        "(~/.ssh/tailscale_dev_config) and returns instructions for adding an Include " +
+        "line to ~/.ssh/config (never applied automatically). Direct editing of " +
+        "~/.ssh/config itself additionally requires target=\"user_ssh_config\" and is " +
+        "idempotent between managed markers, never touching content outside them." +
+        (ctx.readOnly ? " This server is read-only: write=true is refused." : ""),
+      inputSchema: {
+        write: z
+          .boolean()
+          .optional()
+          .describe("Actually write the config (default: false = dry-run, text only)"),
+        target: z
+          .enum(["dedicated_file", "user_ssh_config"])
+          .optional()
+          .describe(
+            'Write target: "dedicated_file" (default, ~/.ssh/tailscale_dev_config) or ' +
+              '"user_ssh_config" (edit ~/.ssh/config between managed markers)',
+          ),
+        onlineOnly: z
+          .boolean()
+          .optional()
+          .describe("Only include peers that are currently online (default: false)"),
+        includeShared: z
+          .boolean()
+          .optional()
+          .describe(
+            "Include nodes of users this node is shared with (default: false). " +
+              "Mullvad exit nodes are always skipped.",
+          ),
+        user: z.string().optional().describe("Remote user to set on every Host block"),
+      },
+      outputSchema: sshConfigOutput,
+      // Writes only with write=true, only inside the managed block or the
+      // dedicated file, and the same input yields the same file.
+      annotations: ctx.readOnly
+        ? READ_ONLY
+        : {
+            readOnlyHint: false,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false,
+          },
     },
     async ({ write, target, onlineOnly, includeShared, user }) => {
       try {

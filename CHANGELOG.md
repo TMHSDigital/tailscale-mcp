@@ -4,6 +4,30 @@ All notable changes to Tailscale MCP will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] - 2026-10-25
+
+### Breaking
+
+- **Node 22 or newer is required** (`engines >=22`). Node 20 reached end of life on 2026-04-30 (#44)
+- `zod` is now 4.x (fixes GHSA-mrhx-c7xc-m3w5). The emitted input schemas inline shared definitions and no longer declare `additionalProperties: false`; unknown keys are still stripped at runtime (#46)
+
+### Added
+
+- Every tool has a `title`, all four MCP annotation hints, and an `outputSchema`. Successful results include `structuredContent`; error results stay text-only (#39)
+- A real homepage at https://tmhsdigital.github.io/tailscale-mcp/ with install snippets, a tool table generated from `mcp-tools.json`, the safety model, and social preview metadata (#38)
+- A local development guide (MCP Inspector) in CONTRIBUTING (#37)
+
+### Changed
+
+- CI runs Node 22 and 24 on Linux, plus Node 24 on Windows and macOS, and fails on high-severity `npm audit` findings in runtime dependencies (#44, #46)
+- Every GitHub Action is pinned by commit SHA, publishing uses a pinned npm, and PR labeling works on fork PRs (#46)
+- The stale bot no longer closes bugs, features, or prioritized issues (#45)
+- `stop_share` has a descriptive first sentence, which clients show as its summary
+
+### Fixed
+
+- Contributor docs no longer reference a `Provider` interface or `ProviderManager` that don't exist (#37)
+
 ## [0.2.0] - 2026-10-25
 
 ### Breaking

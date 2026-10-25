@@ -23,8 +23,9 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Provider adapters
 
-- Implement the `Provider` interface in `src/providers/`
-- Register the adapter in `ProviderManager`
+- Implement the `TailscaleProvider` interface (`src/providers/types.ts`) in `src/providers/`
+- Wire it up in `src/index.ts`, where the provider is constructed and handed to `registerAll`. `CliProvider` is the only implementation today.
+- Inject process or network access (as `CliProvider` does with its `runner` option) so tests stay offline
 
 ### Tools
 
@@ -34,11 +35,41 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 Bump the version in `package.json` in your PR (e.g. `npm version <patch|minor|major> --no-git-tag-version`); CI tags and publishes it on merge.
 
+## Local development & debugging
+
+```bash
+npm install
+npm run typecheck && npm run build && npm test
+```
+
+The tests never touch a real tailnet. To exercise your build against your own tailnet, open it in the MCP Inspector and call tools from its UI:
+
+```bash
+npm run build
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+Or point an MCP client at your checkout instead of the npm package:
+
+```json
+{ "mcpServers": { "tailscale-dev": { "command": "node", "args": ["/path/to/tailscale-mcp/dist/index.js"] } } }
+```
+
+Logs go to stderr (stdout is the MCP channel). The environment variables in the README's configuration reference work the same way here, e.g. `TAILSCALE_MCP_READONLY=1` while experimenting.
+
 ## Pull Request Process
 
-1. Ensure CI passes (`npm run build`, `npm test`, `npm run typecheck`)
+1. Ensure CI passes (`npm run typecheck`, `npm run build`, `npm test`)
 2. Update `CHANGELOG.md` if the change is user-facing
 3. Use a descriptive PR title following conventional commit format
+
+## Issue triage
+
+The issue tracker is the roadmap's record, so tracked work is never closed by a bot. `stale.yml` runs weekly with these rules:
+
+- **Exempt from staleness:** issues labeled `bug`, `feature`, `enhancement`, `security-hardening`, `priority: P1`, `priority: P2`, `help wanted`, or `good first issue`, and any issue in a milestone.
+- **Other issues** (typically questions waiting for a reply) are marked `stale` after 90 days without activity and closed 14 days later. Any comment resets the clock.
+- **Pull requests** are marked stale after 30 days and closed 7 days later, except those labeled `security-hardening` or `dependencies`.
 
 ## Inbound license grant and DCO
 
@@ -53,7 +84,8 @@ By submitting a contribution to this repository, you certify that you have the r
 Every commit in a pull request must carry a `Signed-off-by:` trailer matching the commit author. Sign at commit time with the `-s` flag:
 
 ```bash
-git commit -s -m "feat: add new tool"```
+git commit -s -m "feat: add new tool"
+```
 
 This appends a line like `Signed-off-by: Jane Developer <jane@example.com>` to the commit message. The GitHub DCO App enforces this on every PR.
 
