@@ -2,7 +2,7 @@
 
 # Roadmap
 
-**Current:** v0.1.2 (published to npm)
+**Current:** v0.1.3 (published to npm)
 
 Direction: stay the *safe, structured window into Tailscale* — dry-run defaults, explicit opt-in for anything dangerous, structured errors with remedies. Every new tool is judged against that bar before it ships.
 

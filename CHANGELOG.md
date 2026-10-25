@@ -4,6 +4,14 @@ All notable changes to Tailscale MCP will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.3] - 2026-10-25
+
+### Changed
+
+- `@modelcontextprotocol/sdk` bumped from 1.29.0 to 1.32.1
+- npm publishing uses trusted publishing (OIDC) instead of a long-lived `NPM_TOKEN`
+- Line endings normalized to LF via `.gitattributes`
+
 ## [0.1.2] - 2026-07-14
 
 ### Changed
