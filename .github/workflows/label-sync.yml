@@ -1,8 +1,13 @@
 name: Label PRs
 
+# pull_request_target runs in the base repository's context, so the token can
+# label PRs from forks (under pull_request it is read-only there). This is safe
+# only because the job never checks out or executes PR code: it reads the list
+# of changed file names through the API and passes it via an env var, never
+# interpolating it into the script.
 on:
-  pull_request:
-    types: [opened, synchronize]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -13,18 +18,17 @@ jobs:
     name: Auto-label by path
     runs-on: ubuntu-latest
     steps:
-
-      - uses: actions/checkout@v7
-
       - name: Get changed files
         id: changed
         run: |
-          FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only)
+          FILES=$(gh pr diff "$PR" --name-only)
           echo "files<<EOF" >> "$GITHUB_OUTPUT"
           echo "$FILES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
 
       - name: Apply labels
         run: |
@@ -48,8 +52,10 @@ jobs:
 
           if [ -n "$LABELS" ]; then
             for label in $LABELS; do
-              gh label create "$label" --force --color "ededed" 2>/dev/null || true
-              gh pr edit ${{ github.event.pull_request.number }} --add-label "$label"
+              # Create the label only if it is missing; never reset an existing
+              # label's color or description.
+              gh label create "$label" --color "ededed" 2>/dev/null || true
+              gh pr edit "$PR" --add-label "$label"
             done
             echo "Applied labels:$LABELS"
           else
@@ -58,3 +64,5 @@ jobs:
         env:
           FILES: ${{ steps.changed.outputs.files }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}

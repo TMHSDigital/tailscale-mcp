@@ -7,11 +7,10 @@
       "type": "object",
       "properties": {
         "onlineOnly": {
-          "type": "boolean",
-          "description": "Only include peers that are currently online (default: false)"
+          "description": "Only include peers that are currently online (default: false)",
+          "type": "boolean"
         }
       },
-      "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "outputSchema": {
@@ -103,7 +102,68 @@
         "peers": {
           "type": "array",
           "items": {
-            "$ref": "#/properties/self"
+            "type": "object",
+            "properties": {
+              "hostname": {
+                "type": "string"
+              },
+              "dnsName": {
+                "type": "string"
+              },
+              "ipv4": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ipv6": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "os": {
+                "type": "string"
+              },
+              "online": {
+                "type": "boolean"
+              },
+              "lastSeen": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "exitNode": {
+                "type": "boolean"
+              },
+              "exitNodeOption": {
+                "type": "boolean"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sharee": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "hostname",
+              "dnsName",
+              "ipv4",
+              "ipv6",
+              "os",
+              "online",
+              "lastSeen",
+              "exitNode",
+              "exitNodeOption",
+              "tags",
+              "sharee"
+            ],
+            "additionalProperties": false
           }
         }
       },
@@ -116,8 +176,8 @@
         "peerCount",
         "peers"
       ],
-      "additionalProperties": false,
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -137,31 +197,30 @@
       "type": "object",
       "properties": {
         "write": {
-          "type": "boolean",
-          "description": "Actually write the config (default: false = dry-run, text only)"
+          "description": "Actually write the config (default: false = dry-run, text only)",
+          "type": "boolean"
         },
         "target": {
+          "description": "Write target: \"dedicated_file\" (default, ~/.ssh/tailscale_dev_config) or \"user_ssh_config\" (edit ~/.ssh/config between managed markers)",
           "type": "string",
           "enum": [
             "dedicated_file",
             "user_ssh_config"
-          ],
-          "description": "Write target: \"dedicated_file\" (default, ~/.ssh/tailscale_dev_config) or \"user_ssh_config\" (edit ~/.ssh/config between managed markers)"
+          ]
         },
         "onlineOnly": {
-          "type": "boolean",
-          "description": "Only include peers that are currently online (default: false)"
+          "description": "Only include peers that are currently online (default: false)",
+          "type": "boolean"
         },
         "includeShared": {
-          "type": "boolean",
-          "description": "Include nodes of users this node is shared with (default: false). Mullvad exit nodes are always skipped."
+          "description": "Include nodes of users this node is shared with (default: false). Mullvad exit nodes are always skipped.",
+          "type": "boolean"
         },
         "user": {
-          "type": "string",
-          "description": "Remote user to set on every Host block"
+          "description": "Remote user to set on every Host block",
+          "type": "string"
         }
       },
-      "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "outputSchema": {
@@ -225,15 +284,15 @@
           }
         },
         "configText": {
-          "type": "string",
-          "description": "Generated config (dry run)"
+          "description": "Generated config (dry run)",
+          "type": "string"
         },
         "wrote": {
+          "description": "File written; null when nothing changed",
           "type": [
             "string",
             "null"
-          ],
-          "description": "File written; null when nothing changed"
+          ]
         },
         "backup": {
           "type": [
@@ -252,8 +311,8 @@
         "dryRun",
         "hostCount"
       ],
-      "additionalProperties": false,
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -281,11 +340,11 @@
           "type": "boolean"
         },
         "publicExposure": {
+          "description": "True when any endpoint is exposed via Funnel; null if unknown (old CLI)",
           "type": [
             "boolean",
             "null"
-          ],
-          "description": "True when any endpoint is exposed via Funnel; null if unknown (old CLI)"
+          ]
         },
         "endpoints": {
           "type": "array",
@@ -376,8 +435,8 @@
           }
         },
         "status": {
-          "type": "string",
-          "description": "Raw text status, only on CLIs without --json"
+          "description": "Raw text status, only on CLIs without --json",
+          "type": "string"
         }
       },
       "required": [
@@ -385,8 +444,8 @@
         "publicExposure",
         "endpoints"
       ],
-      "additionalProperties": false,
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
@@ -412,19 +471,18 @@
           "description": "Local port to share"
         },
         "public": {
-          "type": "boolean",
-          "description": "Expose to the open internet via Funnel (default: false = tailnet-only Serve). DANGEROUS: public=true makes the port reachable by anyone on the internet. Disabled unless TAILSCALE_MCP_ALLOW_FUNNEL=1."
+          "description": "Expose to the open internet via Funnel (default: false = tailnet-only Serve). DANGEROUS: public=true makes the port reachable by anyone on the internet. Disabled unless TAILSCALE_MCP_ALLOW_FUNNEL=1.",
+          "type": "boolean"
         },
         "path": {
+          "description": "HTTPS mount path on the serve endpoint, e.g. \"/api\" (default: \"/\")",
           "type": "string",
-          "pattern": "^\\/[A-Za-z0-9._~\\-/]*$",
-          "description": "HTTPS mount path on the serve endpoint, e.g. \"/api\" (default: \"/\")"
+          "pattern": "^\\/[A-Za-z0-9._~\\-/]*$"
         }
       },
       "required": [
         "port"
       ],
-      "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "outputSchema": {
@@ -452,8 +510,8 @@
         "scope",
         "urls"
       ],
-      "additionalProperties": false,
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -473,26 +531,25 @@
       "type": "object",
       "properties": {
         "httpsPort": {
+          "description": "HTTPS serve port of the mount to turn off (default 443 when path is given)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 65535,
-          "description": "HTTPS serve port of the mount to turn off (default 443 when path is given)"
+          "maximum": 65535
         },
         "path": {
+          "description": "Mount path to turn off, as passed to share_port (default: \"/\")",
           "type": "string",
-          "pattern": "^\\/[A-Za-z0-9._~\\-/]*$",
-          "description": "Mount path to turn off, as passed to share_port (default: \"/\")"
+          "pattern": "^\\/[A-Za-z0-9._~\\-/]*$"
         },
         "mine": {
-          "type": "boolean",
-          "description": "Stop only the shares created by share_port in this session"
+          "description": "Stop only the shares created by share_port in this session",
+          "type": "boolean"
         },
         "all": {
-          "type": "boolean",
-          "description": "Clear the ENTIRE serve/funnel config, including shares not created by this server"
+          "description": "Clear the ENTIRE serve/funnel config, including shares not created by this server",
+          "type": "boolean"
         }
       },
-      "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "outputSchema": {
@@ -523,7 +580,20 @@
             {
               "type": "array",
               "items": {
-                "$ref": "#/properties/stopped/anyOf/1"
+                "type": "object",
+                "properties": {
+                  "httpsPort": {
+                    "type": "number"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "httpsPort",
+                  "path"
+                ],
+                "additionalProperties": false
               }
             }
           ]
@@ -596,16 +666,71 @@
               "type": "boolean"
             },
             "publicExposure": {
+              "description": "True when any endpoint is exposed via Funnel; null if unknown (old CLI)",
               "type": [
                 "boolean",
                 "null"
-              ],
-              "description": "True when any endpoint is exposed via Funnel; null if unknown (old CLI)"
+              ]
             },
             "endpoints": {
               "type": "array",
               "items": {
-                "$ref": "#/properties/removed/items"
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "host": {
+                    "type": "string"
+                  },
+                  "httpsPort": {
+                    "type": "number"
+                  },
+                  "scheme": {
+                    "type": "string",
+                    "enum": [
+                      "https",
+                      "http"
+                    ]
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "targetType": {
+                    "type": "string",
+                    "enum": [
+                      "proxy",
+                      "path",
+                      "text",
+                      "redirect",
+                      "unknown"
+                    ]
+                  },
+                  "public": {
+                    "type": "boolean"
+                  },
+                  "foreground": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "url",
+                  "host",
+                  "httpsPort",
+                  "scheme",
+                  "path",
+                  "target",
+                  "targetType",
+                  "public",
+                  "foreground"
+                ],
+                "additionalProperties": false
               }
             },
             "tcpForwards": {
@@ -636,8 +761,8 @@
               }
             },
             "status": {
-              "type": "string",
-              "description": "Raw text status, only on CLIs without --json"
+              "description": "Raw text status, only on CLIs without --json",
+              "type": "string"
             }
           },
           "required": [
@@ -676,8 +801,8 @@
         "removed",
         "remaining"
       ],
-      "additionalProperties": false,
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
@@ -697,23 +822,22 @@
       "type": "object",
       "properties": {
         "count": {
+          "description": "Ping attempts per peer (default: 1)",
           "type": "integer",
           "minimum": 1,
-          "maximum": 10,
-          "description": "Ping attempts per peer (default: 1)"
+          "maximum": 10
         },
         "timeoutMs": {
+          "description": "Per-ping timeout in milliseconds (default: 5000)",
           "type": "integer",
           "minimum": 100,
-          "maximum": 60000,
-          "description": "Per-ping timeout in milliseconds (default: 5000)"
+          "maximum": 60000
         },
         "onlineOnly": {
-          "type": "boolean",
-          "description": "Only ping peers reported online (default: true)"
+          "description": "Only ping peers reported online (default: true)",
+          "type": "boolean"
         }
       },
-      "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "outputSchema": {
@@ -804,8 +928,8 @@
         "timedOut",
         "matrix"
       ],
-      "additionalProperties": false,
-      "$schema": "http://json-schema.org/draft-07/schema#"
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,

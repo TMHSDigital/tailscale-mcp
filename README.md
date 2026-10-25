@@ -31,7 +31,7 @@ Add to your MCP client configuration (Claude Desktop, Cursor, etc.):
 }
 ```
 
-Requires Node 20+ and an installed, logged-in Tailscale client.
+Requires Node 22+ (an active LTS) and an installed, logged-in Tailscale client.
 
 ### Finding the tailscale CLI
 
