@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./index.js";
 import { fail, ok } from "./helpers.js";
-import { DEFAULT_HTTPS_PORT, type ServeStatus } from "../providers/types.js";
+import { DEFAULT_HTTPS_PORT, TailscaleError, type ServeStatus } from "../providers/types.js";
 
 /**
  * An HTTPS mount path: leading slash, URL-safe segment characters only.
@@ -40,7 +40,12 @@ export function summarizeServeStatus(status: ServeStatus) {
   };
 }
 
+const mountKey = (httpsPort: number, path: string) => `${httpsPort}${path}`;
+
 export function register(server: McpServer, ctx: ToolContext): void {
+  /** Mounts created by share_port in this server session, for stop_share mine=true. */
+  const created = new Map<string, { httpsPort: number; path: string }>();
+
   server.tool(
     "share_port",
     "Share a local port over the tailnet via Tailscale Serve (tailnet-only by " +
@@ -64,6 +69,11 @@ export function register(server: McpServer, ctx: ToolContext): void {
     async ({ port, public: isPublic, path }) => {
       try {
         const result = await ctx.provider.serve({ port, public: isPublic === true, path });
+        // share_port never passes --https, so the mount is on the default port.
+        created.set(mountKey(DEFAULT_HTTPS_PORT, path ?? "/"), {
+          httpsPort: DEFAULT_HTTPS_PORT,
+          path: path ?? "/",
+        });
         return ok({
           port,
           public: result.public,
@@ -94,10 +104,13 @@ export function register(server: McpServer, ctx: ToolContext): void {
 
   server.tool(
     "stop_share",
-    "Stop sharing. Without arguments clears the entire serve/funnel configuration; " +
-      "with httpsPort and/or path it turns off just that mount (httpsPort is the port " +
-      "shown in share_status, typically 443 — not the local port that was proxied; " +
-      "path is the mount path given to share_port, default \"/\").",
+    "Stop sharing. Name exactly one target: httpsPort and/or path turns off that one " +
+      "mount (httpsPort is the serve port shown in share_status, typically 443, not the " +
+      "proxied local port; path is the mount path given to share_port, default \"/\"); " +
+      "mine=true stops only the shares this server created in this session; all=true " +
+      "clears the entire serve/funnel configuration, including shares set up outside " +
+      "this server. With no arguments nothing is stopped and the active endpoints are " +
+      "listed. Returns what was removed and what remains.",
     {
       httpsPort: z
         .number()
@@ -105,22 +118,81 @@ export function register(server: McpServer, ctx: ToolContext): void {
         .min(1)
         .max(65535)
         .optional()
-        .describe(
-          "HTTPS serve port to turn off (as shown in share_status; default 443 when path " +
-            "is given). Omit both httpsPort and path to clear everything.",
-        ),
+        .describe("HTTPS serve port of the mount to turn off (default 443 when path is given)"),
       path: mountPath
         .optional()
         .describe('Mount path to turn off, as passed to share_port (default: "/")'),
+      mine: z
+        .boolean()
+        .optional()
+        .describe("Stop only the shares created by share_port in this session"),
+      all: z
+        .boolean()
+        .optional()
+        .describe(
+          "Clear the ENTIRE serve/funnel config, including shares not created by this server",
+        ),
     },
-    async ({ httpsPort, path }) => {
+    async ({ httpsPort, path, mine, all }) => {
       try {
-        const message = await ctx.provider.serveReset(httpsPort, path);
-        const stopped =
-          httpsPort === undefined && path === undefined
-            ? "all"
-            : { httpsPort: httpsPort ?? DEFAULT_HTTPS_PORT, path: path ?? "/" };
-        return ok({ stopped, message });
+        const targeted = httpsPort !== undefined || path !== undefined;
+        const modes = [targeted, mine === true, all === true].filter(Boolean).length;
+        if (modes > 1) {
+          throw new TailscaleError(
+            "INVALID_ARGUMENTS",
+            "stop_share takes exactly one target: httpsPort/path, mine, or all.",
+            "Call stop_share again with a single target.",
+          );
+        }
+
+        const before = await ctx.provider.serveStatus();
+        if (modes === 0) {
+          const endpoints = before.endpoints.map((e) => `${e.url} (httpsPort ${e.httpsPort}, path ${e.path})`);
+          throw new TailscaleError(
+            "TARGET_REQUIRED",
+            "stop_share needs a target; nothing was stopped. " +
+              (endpoints.length > 0
+                ? `Active endpoints: ${endpoints.join("; ")}.`
+                : before.parsed
+                  ? "There are no active endpoints."
+                  : `Current serve status: ${before.raw || "No serve config"}.`),
+            "Pass httpsPort and/or path for one mount, mine=true for shares created in " +
+              "this session, or all=true to clear everything.",
+          );
+        }
+
+        let stopped: unknown;
+        const failures: Array<{ httpsPort: number; path: string; error: string }> = [];
+        if (all) {
+          await ctx.provider.serveReset();
+          created.clear();
+          stopped = "all";
+        } else if (mine) {
+          const mounts = [...created.values()];
+          for (const m of mounts) {
+            try {
+              await ctx.provider.serveReset(m.httpsPort, m.path);
+              created.delete(mountKey(m.httpsPort, m.path));
+            } catch (err) {
+              failures.push({ ...m, error: err instanceof Error ? err.message : String(err) });
+            }
+          }
+          stopped = mounts;
+        } else {
+          const mount = { httpsPort: httpsPort ?? DEFAULT_HTTPS_PORT, path: path ?? "/" };
+          await ctx.provider.serveReset(mount.httpsPort, mount.path);
+          created.delete(mountKey(mount.httpsPort, mount.path));
+          stopped = mount;
+        }
+
+        const after = await ctx.provider.serveStatus();
+        const remainingUrls = new Set(after.endpoints.map((e) => e.url));
+        return ok({
+          stopped,
+          removed: before.endpoints.filter((e) => !remainingUrls.has(e.url)),
+          remaining: summarizeServeStatus(after),
+          ...(failures.length > 0 && { failures }),
+        });
       } catch (err) {
         return fail(err);
       }

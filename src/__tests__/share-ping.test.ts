@@ -158,43 +158,124 @@ describe("share_status / stop_share", () => {
     expect(data.status).toContain("proxy http://127.0.0.1:3000");
   });
 
-  it("stop_share without port resets everything", async () => {
+  /**
+   * A stateful stand-in for the daemon's serve config: share_port adds a
+   * handler on :443, `--https=N [--set-path=P] off` removes one, `reset`
+   * clears all, and `serve status --json` reports the current state.
+   */
+  function fakeServe(initial: Record<string, string> = {}) {
+    const host = "devpc.tail1234.ts.net";
+    const handlers = new Map(Object.entries(initial)); // "443/path" -> proxy
     const calls: RunnerCall[] = [];
-    const client = await connectedClient(
-      new CliProvider({ runner: mockRunner({ "serve reset": okResult("") }, calls) }),
-    );
-    const data = payload(await client.callTool({ name: "stop_share", arguments: {} }));
+    const runner = async (bin: string, args: string[]): Promise<CliResult> => {
+      calls.push({ bin, args });
+      const key = args.join(" ");
+      if (key === "serve status --json") {
+        const web: Record<string, { Handlers: Record<string, { Proxy: string }> }> = {};
+        for (const [k, proxy] of handlers) {
+          const [port, ...rest] = k.split("/");
+          const hp = `${host}:${port}`;
+          (web[hp] ??= { Handlers: {} }).Handlers[`/${rest.join("/")}`] = { Proxy: proxy };
+        }
+        return okResult(JSON.stringify(handlers.size ? { Web: web } : {}));
+      }
+      if (key === "serve reset") {
+        handlers.clear();
+        return okResult("");
+      }
+      const setPath = args.find((a) => a.startsWith("--set-path="))?.slice(11) ?? "/";
+      if (args[args.length - 1] === "off") {
+        const port = args.find((a) => a.startsWith("--https="))!.slice(8);
+        handlers.delete(`${port}${setPath}`);
+        return okResult("");
+      }
+      if (args[0] === "serve" && args[1] === "--bg") {
+        handlers.set(`443${setPath}`, `http://127.0.0.1:${args[args.length - 1]}`);
+        return okResult(`Available within your tailnet:\n\nhttps://${host}${setPath}\n`);
+      }
+      throw new Error(`fakeServe: unrouted ${key}`);
+    };
+    return { runner, calls, handlers };
+  }
+
+  const handLeft = { "443/": "http://127.0.0.1:8123" }; // e.g. a Home Assistant share
+
+  it("stop_share with no arguments stops nothing and lists the active endpoints", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const result = await client.callTool({ name: "stop_share", arguments: {} });
+    expect(result.isError).toBe(true);
+    const err = payload(result).error;
+    expect(err.code).toBe("TARGET_REQUIRED");
+    expect(err.message).toContain("https://devpc.tail1234.ts.net/");
+    expect(fake.handlers.size).toBe(1);
+    expect(fake.calls.map((c) => c.args.join(" "))).toEqual(["serve status --json"]);
+  });
+
+  it("stop_share all=true resets everything and reports what was removed", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const data = payload(await client.callTool({ name: "stop_share", arguments: { all: true } }));
     expect(data.stopped).toBe("all");
-    expect(calls[0].args).toEqual(["serve", "reset"]);
+    expect(data.removed.map((e: any) => e.url)).toEqual(["https://devpc.tail1234.ts.net/"]);
+    expect(data.remaining.active).toBe(false);
+    expect(fake.calls.map((c) => c.args.join(" "))).toContain("serve reset");
   });
 
   it("stop_share with httpsPort turns off that endpoint only", async () => {
-    const calls: RunnerCall[] = [];
-    const client = await connectedClient(
-      new CliProvider({ runner: mockRunner({ serve: okResult("") }, calls) }),
+    const fake = fakeServe({ ...handLeft, "443/api": "http://127.0.0.1:4000" });
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const data = payload(
+      await client.callTool({ name: "stop_share", arguments: { httpsPort: 443 } }),
     );
-    await client.callTool({ name: "stop_share", arguments: { httpsPort: 443 } });
-    expect(calls[0].args).toEqual(["serve", "--https=443", "off"]);
+    expect(fake.calls[1].args).toEqual(["serve", "--https=443", "off"]);
+    expect(data.removed.map((e: any) => e.path)).toEqual(["/"]);
+    expect(data.remaining.endpoints.map((e: any) => e.path)).toEqual(["/api"]);
   });
 
   it("round-trips a path-mounted share: share_port at /api, stop_share removes just /api", async () => {
-    const calls: RunnerCall[] = [];
-    const client = await connectedClient(
-      new CliProvider({
-        runner: mockRunner(
-          { serve: okResult("Available within your tailnet:\n\nhttps://devpc.tail1234.ts.net/api\n") },
-          calls,
-        ),
-      }),
-    );
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
     await client.callTool({ name: "share_port", arguments: { port: 3000, path: "/api/" } });
-    expect(calls[0].args).toEqual(["serve", "--bg", "--set-path=/api", "3000"]);
+    expect(fake.calls[0].args).toEqual(["serve", "--bg", "--set-path=/api", "3000"]);
 
     const data = payload(
       await client.callTool({ name: "stop_share", arguments: { path: "/api" } }),
     );
-    expect(calls[1].args).toEqual(["serve", "--https=443", "--set-path=/api", "off"]);
+    expect(fake.calls[2].args).toEqual(["serve", "--https=443", "--set-path=/api", "off"]);
     expect(data.stopped).toEqual({ httpsPort: 443, path: "/api" });
+    expect(data.removed.map((e: any) => e.url)).toEqual(["https://devpc.tail1234.ts.net/api"]);
+  });
+
+  it("stop_share mine=true stops only shares created in this session", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    await client.callTool({ name: "share_port", arguments: { port: 3000, path: "/app" } });
+    await client.callTool({ name: "share_port", arguments: { port: 4000, path: "/api" } });
+
+    const data = payload(await client.callTool({ name: "stop_share", arguments: { mine: true } }));
+    expect(data.stopped).toEqual([
+      { httpsPort: 443, path: "/app" },
+      { httpsPort: 443, path: "/api" },
+    ]);
+    expect(data.removed.map((e: any) => e.path).sort()).toEqual(["/api", "/app"]);
+    // The hand-made share on "/" survives.
+    expect(data.remaining.endpoints.map((e: any) => e.path)).toEqual(["/"]);
+
+    // A second call has nothing left to stop.
+    const again = payload(await client.callTool({ name: "stop_share", arguments: { mine: true } }));
+    expect(again.stopped).toEqual([]);
+  });
+
+  it("stop_share rejects combining targets", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const result = await client.callTool({
+      name: "stop_share",
+      arguments: { all: true, httpsPort: 443 },
+    });
+    expect(payload(result).error.code).toBe("INVALID_ARGUMENTS");
+    expect(fake.calls).toHaveLength(0);
   });
 
   it.each(["api", "", "/has space", "/q?x=1", "/../etc"])(

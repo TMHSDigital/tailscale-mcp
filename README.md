@@ -125,7 +125,13 @@ Raw TCP forwards appear under `tcpForwards`. On CLIs too old for `--json`, the t
 
 ### stop_share
 
-Without arguments clears the entire serve/funnel configuration. With `httpsPort` and/or `path` it turns off one mount: `httpsPort` is the serve port shown in `share_status` (default 443, not the proxied local port), and `path` is the mount path given to `share_port` (default `/`). For example, `{"path": "/api"}` undoes `share_port {"port": 3000, "path": "/api"}`.
+Stops shares. Name exactly one target:
+
+- `httpsPort` and/or `path` turns off one mount. `httpsPort` is the serve port shown in `share_status` (default 443, not the proxied local port), and `path` is the mount path given to `share_port` (default `/`). For example, `{"path": "/api"}` undoes `share_port {"port": 3000, "path": "/api"}`.
+- `mine: true` stops only the shares `share_port` created during this server session.
+- `all: true` clears the entire serve/funnel configuration, **including shares you set up outside this server**.
+
+With no arguments nothing is stopped: the tool returns `TARGET_REQUIRED` and lists the active endpoints. Every successful call returns `removed` (the endpoints that went away) and `remaining` (the `share_status` view afterwards).
 
 Mount paths must start with `/` and use only letters, digits, and `. _ ~ - /`, with no `.` or `..` segments. A trailing slash is dropped.
 
@@ -161,7 +167,7 @@ An agent asked to "deploy this to my dev VPS and show me the result" can do the 
 - `share_port` defaults to tailnet-only Serve. Nothing is reachable from outside your tailnet.
 - `public: true` uses Tailscale Funnel: the URL is reachable by **anyone on the internet**, not just your tailnet. The tool description carries this warning so agents surface it before acting.
 - Serve and Funnel must be enabled per-tailnet in the admin console. When they are not, the tool returns a structured `SERVE_NOT_ENABLED` error containing the exact enablement URL and changes nothing.
-- `stop_share` (no arguments) is the kill switch: it clears the entire serve/funnel configuration.
+- `stop_share {"all": true}` is the kill switch: it clears the entire serve/funnel configuration. Calling it without arguments never deletes anything.
 - This server never reads or stores `TS_AUTHKEY` or any other credential.
 
 ## Development
