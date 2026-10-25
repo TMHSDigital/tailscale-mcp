@@ -1,5 +1,9 @@
 name: Stale
 
+# Only issues waiting on someone else's reply go stale: anything labeled as a
+# bug, feature, enhancement, security item, or P1/P2, or attached to a
+# milestone, is tracked work and is never closed automatically. See
+# CONTRIBUTING.md ("Issue triage").
 on:
   schedule:
     - cron: "0 6 * * 1"
@@ -13,11 +17,16 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v10
+      - uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10.4.0
         with:
-          stale-issue-message: "This issue has been automatically marked as stale due to inactivity. It will be closed in 7 days if no further activity occurs."
-          stale-pr-message: "This PR has been automatically marked as stale due to inactivity. It will be closed in 7 days if no further activity occurs."
-          days-before-stale: 30
-          days-before-close: 7
+          stale-issue-message: "This issue has had no activity for 90 days and is waiting on more information. It will be closed in 14 days unless there is new activity."
+          stale-pr-message: "This PR has had no activity for 30 days. It will be closed in 7 days unless there is new activity."
+          days-before-issue-stale: 90
+          days-before-issue-close: 14
+          days-before-pr-stale: 30
+          days-before-pr-close: 7
           stale-issue-label: stale
           stale-pr-label: stale
+          exempt-issue-labels: "bug,feature,enhancement,security-hardening,priority: P1,priority: P2,help wanted,good first issue"
+          exempt-pr-labels: "security-hardening,dependencies"
+          exempt-all-milestones: true

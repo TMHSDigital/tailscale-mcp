@@ -40,6 +40,14 @@ Bump the version in `package.json` in your PR (e.g. `npm version <patch|minor|ma
 2. Update `CHANGELOG.md` if the change is user-facing
 3. Use a descriptive PR title following conventional commit format
 
+## Issue triage
+
+The issue tracker is the roadmap's record, so tracked work is never closed by a bot. `stale.yml` runs weekly with these rules:
+
+- **Exempt from staleness:** issues labeled `bug`, `feature`, `enhancement`, `security-hardening`, `priority: P1`, `priority: P2`, `help wanted`, or `good first issue`, and any issue in a milestone.
+- **Other issues** (typically questions waiting for a reply) are marked `stale` after 90 days without activity and closed 14 days later. Any comment resets the clock.
+- **Pull requests** are marked stale after 30 days and closed 7 days later, except those labeled `security-hardening` or `dependencies`.
+
 ## Inbound license grant and DCO
 
 This project's outbound license is CC-BY-NC-ND-4.0. Contributions are accepted inbound under a broader grant via the Developer Certificate of Origin (DCO). Both pieces are required because CC-BY-NC-ND-4.0 alone cannot cleanly accept third-party derivatives.
