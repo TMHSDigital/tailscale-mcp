@@ -1,6 +1,7 @@
 [
   {
     "name": "tailnet_status",
+    "title": "Tailnet status",
     "description": "Report the state of the local tailnet: this node plus all peers with hostname, MagicDNS name, Tailscale IPv4/IPv6, OS, online flag, last seen, exit-node flags, and tags. Returns a structured error with the exact fix command when the tailscale binary is missing, the daemon is stopped, or the device needs login.",
     "inputSchema": {
       "type": "object",
@@ -13,12 +14,124 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "backendState": {
+          "type": "string"
+        },
+        "tailnet": {
+          "type": "string"
+        },
+        "magicDNSSuffix": {
+          "type": "string"
+        },
+        "health": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "self": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string"
+            },
+            "dnsName": {
+              "type": "string"
+            },
+            "ipv4": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ipv6": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "os": {
+              "type": "string"
+            },
+            "online": {
+              "type": "boolean"
+            },
+            "lastSeen": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "exitNode": {
+              "type": "boolean"
+            },
+            "exitNodeOption": {
+              "type": "boolean"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "sharee": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "hostname",
+            "dnsName",
+            "ipv4",
+            "ipv6",
+            "os",
+            "online",
+            "lastSeen",
+            "exitNode",
+            "exitNodeOption",
+            "tags",
+            "sharee"
+          ],
+          "additionalProperties": false
+        },
+        "peerCount": {
+          "type": "number",
+          "description": "Total peers, before any onlineOnly filter"
+        },
+        "peers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/self"
+          }
+        }
+      },
+      "required": [
+        "backendState",
+        "tailnet",
+        "magicDNSSuffix",
+        "health",
+        "self",
+        "peerCount",
+        "peers"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "execution": {
       "taskSupport": "forbidden"
     }
   },
   {
     "name": "generate_ssh_config",
+    "title": "Generate SSH config",
     "description": "Generate ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). Dry-run by default: returns the generated config text only and writes nothing. With write=true it writes a dedicated file (~/.ssh/tailscale_dev_config) and returns instructions for adding an Include line to ~/.ssh/config (never applied automatically). Direct editing of ~/.ssh/config itself additionally requires target=\"user_ssh_config\" and is idempotent between managed markers, never touching content outside them.",
     "inputSchema": {
       "type": "object",
@@ -51,17 +164,235 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "dryRun": {
+          "type": "boolean"
+        },
+        "hostCount": {
+          "type": "number"
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hostname": {
+                "type": "string"
+              },
+              "dnsName": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "no_address",
+                  "mullvad_exit_node",
+                  "shared_node"
+                ]
+              }
+            },
+            "required": [
+              "hostname",
+              "dnsName",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "renamed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "hostname": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "hostname"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "configText": {
+          "type": "string",
+          "description": "Generated config (dry run)"
+        },
+        "wrote": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "File written; null when nothing changed"
+        },
+        "backup": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dryRun",
+        "hostCount"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "execution": {
       "taskSupport": "forbidden"
     }
   },
   {
     "name": "share_status",
+    "title": "Share status",
     "description": "Report the active Tailscale Serve/Funnel sessions on this node: one entry per endpoint with its URL, serve port, mount path, proxied target, and a public flag that is true when Funnel exposes it to the open internet. publicExposure is true when anything is public.",
     "inputSchema": {
       "type": "object",
       "properties": {},
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "publicExposure": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "True when any endpoint is exposed via Funnel; null if unknown (old CLI)"
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "httpsPort": {
+                "type": "number"
+              },
+              "scheme": {
+                "type": "string",
+                "enum": [
+                  "https",
+                  "http"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "target": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "targetType": {
+                "type": "string",
+                "enum": [
+                  "proxy",
+                  "path",
+                  "text",
+                  "redirect",
+                  "unknown"
+                ]
+              },
+              "public": {
+                "type": "boolean"
+              },
+              "foreground": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "url",
+              "host",
+              "httpsPort",
+              "scheme",
+              "path",
+              "target",
+              "targetType",
+              "public",
+              "foreground"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "tcpForwards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "port": {
+                "type": "number"
+              },
+              "target": {
+                "type": "string"
+              },
+              "public": {
+                "type": "boolean"
+              },
+              "foreground": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "port",
+              "target",
+              "public",
+              "foreground"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "Raw text status, only on CLIs without --json"
+        }
+      },
+      "required": [
+        "active",
+        "publicExposure",
+        "endpoints"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
     },
     "execution": {
       "taskSupport": "forbidden"
@@ -69,6 +400,7 @@
   },
   {
     "name": "share_port",
+    "title": "Share a local port",
     "description": "Share a local port over the tailnet via Tailscale Serve (tailnet-only by default). WARNING: setting public=true switches to Funnel and exposes the port to the OPEN INTERNET — anyone with the URL can reach it. Only set public=true when internet exposure is explicitly intended. Funnel is DISABLED on this server: public=true returns FUNNEL_DISABLED unless the user sets TAILSCALE_MCP_ALLOW_FUNNEL=1. Returns the resulting URL(s).",
     "inputSchema": {
       "type": "object",
@@ -95,12 +427,47 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "number"
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "urls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "port",
+        "public",
+        "scope",
+        "urls"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "execution": {
       "taskSupport": "forbidden"
     }
   },
   {
     "name": "stop_share",
+    "title": "Stop sharing",
     "description": "Stop sharing. Name exactly one target: httpsPort and/or path turns off that one mount (httpsPort is the serve port shown in share_status, typically 443, not the proxied local port; path is the mount path given to share_port, default \"/\"); mine=true stops only the shares this server created in this session; all=true clears the entire serve/funnel configuration, including shares set up outside this server. With no arguments nothing is stopped and the active endpoints are listed. Returns what was removed and what remains.",
     "inputSchema": {
       "type": "object",
@@ -128,12 +495,203 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "stopped": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "all"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "httpsPort": {
+                  "type": "number"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "httpsPort",
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/properties/stopped/anyOf/1"
+              }
+            }
+          ]
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "httpsPort": {
+                "type": "number"
+              },
+              "scheme": {
+                "type": "string",
+                "enum": [
+                  "https",
+                  "http"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "target": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "targetType": {
+                "type": "string",
+                "enum": [
+                  "proxy",
+                  "path",
+                  "text",
+                  "redirect",
+                  "unknown"
+                ]
+              },
+              "public": {
+                "type": "boolean"
+              },
+              "foreground": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "url",
+              "host",
+              "httpsPort",
+              "scheme",
+              "path",
+              "target",
+              "targetType",
+              "public",
+              "foreground"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "remaining": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "publicExposure": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "True when any endpoint is exposed via Funnel; null if unknown (old CLI)"
+            },
+            "endpoints": {
+              "type": "array",
+              "items": {
+                "$ref": "#/properties/removed/items"
+              }
+            },
+            "tcpForwards": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "port": {
+                    "type": "number"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "public": {
+                    "type": "boolean"
+                  },
+                  "foreground": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "port",
+                  "target",
+                  "public",
+                  "foreground"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "status": {
+              "type": "string",
+              "description": "Raw text status, only on CLIs without --json"
+            }
+          },
+          "required": [
+            "active",
+            "publicExposure",
+            "endpoints"
+          ],
+          "additionalProperties": false
+        },
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "httpsPort": {
+                "type": "number"
+              },
+              "path": {
+                "type": "string"
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "httpsPort",
+              "path",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "stopped",
+        "removed",
+        "remaining"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "execution": {
       "taskSupport": "forbidden"
     }
   },
   {
     "name": "ping_all",
+    "title": "Ping all peers",
     "description": "Ping tailnet peers concurrently (bounded to 5 at a time, with a per-ping timeout) and return a latency matrix: node, latency ms of the settled path, path (direct, DERP relay, or peer relay), or unreachable. Defaults to online peers only. The whole call is capped at 45s; peers not answered by then are reported with an error and timedOut is true.",
     "inputSchema": {
       "type": "object",
@@ -157,6 +715,103 @@
       },
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "pinged": {
+          "type": "number"
+        },
+        "reachable": {
+          "type": "number"
+        },
+        "timedOut": {
+          "type": "boolean"
+        },
+        "matrix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hostname": {
+                "type": "string"
+              },
+              "dnsName": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "reachable": {
+                "type": "boolean"
+              },
+              "latencyMs": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "direct",
+                      "derp",
+                      "peer-relay",
+                      "unknown"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "via": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "attempts": {
+                "type": "number"
+              },
+              "replies": {
+                "type": "number"
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hostname",
+              "dnsName",
+              "target",
+              "reachable",
+              "latencyMs",
+              "path",
+              "via",
+              "attempts",
+              "replies"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "pinged",
+        "reachable",
+        "timedOut",
+        "matrix"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
     },
     "execution": {
       "taskSupport": "forbidden"

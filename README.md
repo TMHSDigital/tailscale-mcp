@@ -74,6 +74,17 @@ sudo tailscale set --operator=$USER
 
 ## Tools
 
+Every tool declares MCP annotations, so clients can auto-approve the read-only ones and confirm the rest. Results come back as `structuredContent`, typed by each tool's `outputSchema`, with the same JSON repeated in a text block for older clients. The full definitions are in [`mcp-tools.json`](mcp-tools.json), which is generated from the server.
+
+| Tool | Read-only | Destructive | Idempotent | Open world |
+|---|---|---|---|---|
+| `tailnet_status` | yes | no | yes | no |
+| `share_status` | yes | no | yes | no |
+| `ping_all` | yes | no | yes | no |
+| `generate_ssh_config` | no (writes only with `write: true`) | no | yes | no |
+| `share_port` | no | no | yes | only when Funnel is allowed |
+| `stop_share` | no | yes | yes | no |
+
 ### tailnet_status
 
 Trimmed view of `tailscale status --json`: self node plus peers with hostname, MagicDNS name, Tailscale IPv4/IPv6, OS, online flag, last seen, exit-node flags, and tags. Input: optional `onlineOnly`.
