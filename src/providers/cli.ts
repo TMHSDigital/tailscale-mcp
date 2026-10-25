@@ -31,6 +31,25 @@ export type CliRunner = (
 
 export const WINDOWS_FALLBACK_BIN = "C:\\Program Files\\Tailscale\\tailscale.exe";
 
+/**
+ * The CLI inside the macOS app bundle (Mac App Store and standalone
+ * installs), which is not on PATH by default.
+ */
+export const MACOS_APP_BIN = "/Applications/Tailscale.app/Contents/MacOS/Tailscale";
+
+/**
+ * Install locations tried in order when `tailscale` is not on PATH. MCP
+ * clients such as Claude Desktop launch servers with a minimal PATH, so the
+ * Homebrew prefixes are often missing too.
+ */
+export const FALLBACK_BINS: Partial<Record<NodeJS.Platform, string[]>> = {
+  win32: [WINDOWS_FALLBACK_BIN],
+  darwin: [MACOS_APP_BIN, "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale"],
+};
+
+/** Env var that overrides binary resolution with an explicit path. */
+export const BIN_ENV_VAR = "TAILSCALE_MCP_BIN";
+
 export function defaultCliRunner(
   bin: string,
   args: string[],
@@ -105,7 +124,7 @@ function toNode(raw: RawNode): TailscaleNode {
 }
 
 export interface CliProviderOptions {
-  /** Explicit binary path; skips PATH resolution and the Windows fallback. */
+  /** Explicit binary path; skips PATH resolution and the platform fallbacks. */
   bin?: string;
   runner?: CliRunner;
   /** Platform override for tests (defaults to process.platform). */
@@ -126,20 +145,27 @@ export class CliProvider implements TailscaleProvider {
   }
 
   /**
-   * Run the tailscale binary, resolving it from PATH with a Windows-aware
-   * fallback to the default install location. Throws BINARY_NOT_FOUND when
-   * neither resolves.
+   * Run the tailscale binary, resolving it from PATH with a fallback to the
+   * platform's default install locations. The first location that resolves
+   * is remembered. Throws BINARY_NOT_FOUND when none resolves.
    */
   private async run(args: string[], opts?: { timeoutMs?: number }): Promise<CliResult> {
     try {
       return await this.runner(this.bin, args, opts);
     } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") throw err;
-      if (!this.explicitBin && this.platform === "win32" && this.bin === "tailscale") {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      if (this.explicitBin) {
+        throw new TailscaleError(
+          "BINARY_NOT_FOUND",
+          `The tailscale CLI was not found at ${this.bin}.`,
+          `Check the path configured via ${BIN_ENV_VAR}, or unset it to search PATH.`,
+        );
+      }
+      const fallbacks = this.bin === "tailscale" ? (FALLBACK_BINS[this.platform] ?? []) : [];
+      for (const candidate of fallbacks) {
         try {
-          const result = await this.runner(WINDOWS_FALLBACK_BIN, args, opts);
-          this.bin = WINDOWS_FALLBACK_BIN;
+          const result = await this.runner(candidate, args, opts);
+          this.bin = candidate;
           return result;
         } catch (fallbackErr) {
           if ((fallbackErr as NodeJS.ErrnoException).code !== "ENOENT") throw fallbackErr;
@@ -148,9 +174,13 @@ export class CliProvider implements TailscaleProvider {
       throw new TailscaleError(
         "BINARY_NOT_FOUND",
         "The tailscale CLI was not found on PATH" +
-          (this.platform === "win32" ? ` or at ${WINDOWS_FALLBACK_BIN}` : "") +
+          (fallbacks.length > 0 ? ` or at ${fallbacks.join(", ")}` : "") +
           ".",
-        "Install Tailscale from https://tailscale.com/download and ensure `tailscale` is on PATH.",
+        this.platform === "darwin"
+          ? "Install Tailscale from https://tailscale.com/download. If it is installed, set " +
+            `${BIN_ENV_VAR} to the CLI path (for the app: ${MACOS_APP_BIN}).`
+          : "Install Tailscale from https://tailscale.com/download and ensure `tailscale` is " +
+            `on PATH, or set ${BIN_ENV_VAR} to the CLI path.`,
       );
     }
   }
@@ -180,6 +210,16 @@ export class CliProvider implements TailscaleProvider {
         "DAEMON_NOT_RUNNING",
         `The Tailscale daemon is not reachable (${stderr || "no daemon"}).`,
         "Start the Tailscale service, then run: tailscale up",
+      );
+    }
+    const combined = `${stderr}\n${result.stdout}`;
+    if (/access denied|permission denied/i.test(combined)) {
+      return new TailscaleError(
+        "PERMISSION_DENIED",
+        `tailscale ${context} was denied: ${(stderr || result.stdout.trim()).split("\n")[0]}`,
+        this.platform === "linux"
+          ? "Allow your user to manage Tailscale without sudo: sudo tailscale set --operator=$USER"
+          : "Run the MCP server as a user allowed to change Tailscale settings.",
       );
     }
     return new TailscaleError(

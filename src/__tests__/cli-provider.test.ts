@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CliProvider, WINDOWS_FALLBACK_BIN } from "../providers/cli.js";
+import {
+  BIN_ENV_VAR,
+  CliProvider,
+  MACOS_APP_BIN,
+  WINDOWS_FALLBACK_BIN,
+} from "../providers/cli.js";
 import { TailscaleError } from "../providers/types.js";
 import { enoent, fixture, mockRunner, okResult, RunnerCall } from "./support.js";
 
@@ -97,12 +102,79 @@ describe("CliProvider.status", () => {
     expect(calls[calls.length - 1].bin).toBe(WINDOWS_FALLBACK_BIN);
   });
 
+  it("falls back to the app-bundle CLI, then Homebrew, on macOS", async () => {
+    const calls: RunnerCall[] = [];
+    const runner = async (bin: string, args: string[]) => {
+      calls.push({ bin, args });
+      if (bin !== "/opt/homebrew/bin/tailscale") throw enoent();
+      return okResult(fixture("status-running.json"));
+    };
+    const provider = new CliProvider({ runner, platform: "darwin" });
+    await provider.status();
+    expect(calls.map((c) => c.bin)).toEqual([
+      "tailscale",
+      MACOS_APP_BIN,
+      "/opt/homebrew/bin/tailscale",
+    ]);
+    await provider.status();
+    expect(calls[calls.length - 1].bin).toBe("/opt/homebrew/bin/tailscale");
+  });
+
+  it("gives a macOS-specific remedy naming the override env var", async () => {
+    const provider = new CliProvider({
+      runner: async () => {
+        throw enoent();
+      },
+      platform: "darwin",
+    });
+    const err = (await provider.status().catch((e: unknown) => e)) as TailscaleError;
+    expect(err.code).toBe("BINARY_NOT_FOUND");
+    expect(err.message).toContain(MACOS_APP_BIN);
+    expect(err.remedy).toContain(BIN_ENV_VAR);
+  });
+
+  it("uses an explicit bin as-is and skips fallbacks", async () => {
+    const calls: RunnerCall[] = [];
+    const runner = async (bin: string, args: string[]) => {
+      calls.push({ bin, args });
+      throw enoent();
+    };
+    const provider = new CliProvider({ runner, platform: "darwin", bin: "/custom/tailscale" });
+    const err = (await provider.status().catch((e: unknown) => e)) as TailscaleError;
+    expect(calls.map((c) => c.bin)).toEqual(["/custom/tailscale"]);
+    expect(err.code).toBe("BINARY_NOT_FOUND");
+    expect(err.message).toContain("/custom/tailscale");
+  });
+
   it("surfaces unparseable status output as CLI_ERROR", async () => {
     const provider = new CliProvider({
       runner: mockRunner({ "status --json": okResult("not json at all") }),
     });
     const err = await provider.status().catch((e: unknown) => e);
     expect((err as TailscaleError).code).toBe("CLI_ERROR");
+  });
+});
+
+describe("CliProvider permission errors", () => {
+  const denied = {
+    status: 1,
+    stdout: "",
+    stderr: "sending serve config: Access denied: serve config denied\n",
+  };
+
+  it.each([
+    ["serve", (p: CliProvider) => p.serve({ port: 3000 })],
+    ["funnel", (p: CliProvider) => p.serve({ port: 3000, public: true })],
+    ["serve reset", (p: CliProvider) => p.serveReset()],
+  ])("maps access denied on %s to PERMISSION_DENIED with the operator remedy", async (route, call) => {
+    const provider = new CliProvider({
+      runner: mockRunner({ [route]: denied }),
+      platform: "linux",
+    });
+    const err = (await call(provider).catch((e: unknown) => e)) as TailscaleError;
+    expect(err).toBeInstanceOf(TailscaleError);
+    expect(err.code).toBe("PERMISSION_DENIED");
+    expect(err.remedy).toContain("sudo tailscale set --operator=$USER");
   });
 });
 

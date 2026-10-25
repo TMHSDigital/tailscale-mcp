@@ -33,6 +33,30 @@ Add to your MCP client configuration (Claude Desktop, Cursor, etc.):
 
 Requires Node 20+ and an installed, logged-in Tailscale client.
 
+### Finding the tailscale CLI
+
+The server looks for `tailscale` on `PATH`, then in the platform's default install locations: `C:\Program Files\Tailscale\tailscale.exe` on Windows, and `/Applications/Tailscale.app/Contents/MacOS/Tailscale`, `/opt/homebrew/bin/tailscale`, and `/usr/local/bin/tailscale` on macOS. Mac App Store installs therefore work without extra setup. To use a different binary, set `TAILSCALE_MCP_BIN`:
+
+```json
+{
+  "mcpServers": {
+    "tailscale": {
+      "command": "npx",
+      "args": ["-y", "@tmhs/tailscale-mcp"],
+      "env": { "TAILSCALE_MCP_BIN": "/path/to/tailscale" }
+    }
+  }
+}
+```
+
+### Linux: Serve/Funnel permissions
+
+On Linux only root or the configured operator can change Serve/Funnel settings. If `share_port` or `stop_share` returns `PERMISSION_DENIED`, allow your user once:
+
+```bash
+sudo tailscale set --operator=$USER
+```
+
 ## Tools
 
 ### tailnet_status
