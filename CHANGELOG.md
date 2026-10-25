@@ -4,6 +4,29 @@ All notable changes to Tailscale MCP will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] - 2026-10-25
+
+### Breaking
+
+- **Funnel is denied by default.** `share_port {"public": true}` returns `FUNNEL_DISABLED` unless `TAILSCALE_MCP_ALLOW_FUNNEL=1` is set (#40)
+- **`stop_share` with no arguments no longer clears the serve config.** It returns `TARGET_REQUIRED` and lists the active endpoints. Use `{"all": true}` for the old behavior (#41)
+- `share_status` returns structured `endpoints` (plus `publicExposure`) instead of the raw `status` text (#43)
+- `ping_all` / `PingResult.path` can now be `peer-relay` or `unknown` in addition to `direct` and `derp` (#33)
+
+### Added
+
+- `TAILSCALE_MCP_READONLY=1`: `share_port` and `stop_share` are not registered, and `generate_ssh_config` refuses writes (`READ_ONLY`) (#40)
+- `stop_share` `mine: true` (only shares created this session) and `all: true`; every call returns `removed` and `remaining` (#41)
+- `share_status` lists each endpoint's URL, serve port, path, target, and a per-endpoint `public` flag, plus TCP forwards and foreground sessions (#43)
+- Every CLI call is bounded (default 10s, `TAILSCALE_MCP_TIMEOUT_MS`), with a structured `TIMEOUT` error. `ping_all` is capped at 45s and returns partial results with `timedOut: true` (#34)
+- `ping_all` rows report `attempts` and `replies` (#33)
+- `npm run gen:tools` regenerates `mcp-tools.json` from the server; CI fails when it is stale (#36)
+
+### Fixed
+
+- `ping_all` reports the settled path after a DERP→direct upgrade (it used to take the first reply), no longer labels peer-relay or TSMP replies `direct`, and parses latencies like `0s` and `1.234s` (#33)
+- Malformed env values stop the server at startup instead of being silently ignored
+
 ## [0.1.4] - 2026-10-25
 
 ### Fixed

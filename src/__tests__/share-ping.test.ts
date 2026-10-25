@@ -3,13 +3,16 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CliProvider, CliResult } from "../providers/cli.js";
-import { registerAll } from "../tools/index.js";
+import { registerAll, type ToolContext } from "../tools/index.js";
 import { boundedMap, PING_CONCURRENCY } from "../tools/ping.js";
 import { fixture, mockRunner, okResult, payload, RunnerCall } from "./support.js";
 
-async function connectedClient(provider: CliProvider): Promise<Client> {
+async function connectedClient(
+  provider: CliProvider,
+  overrides: Partial<ToolContext> = {},
+): Promise<Client> {
   const server = new McpServer({ name: "test", version: "0.0.0" });
-  registerAll(server, { provider });
+  registerAll(server, { provider, ...overrides });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -43,20 +46,41 @@ describe("share_port", () => {
     }
   });
 
-  it("public=true uses funnel and flags the open-internet scope", async () => {
-    const calls: RunnerCall[] = [];
-    const client = await connectedClient(
-      new CliProvider({
-        runner: mockRunner(
-          {
-            funnel: okResult(
-              "Available on the internet:\n\nhttps://devpc.tail1234.ts.net/\n|-- proxy http://127.0.0.1:3000\n",
-            ),
-          },
-          calls,
+  function funnelRunner(calls: RunnerCall[]) {
+    return mockRunner(
+      {
+        funnel: okResult(
+          "Available on the internet:\n\nhttps://devpc.tail1234.ts.net/\n|-- proxy http://127.0.0.1:3000\n",
         ),
-      }),
+      },
+      calls,
     );
+  }
+
+  it("denies public=true by default without invoking the CLI", async () => {
+    const calls: RunnerCall[] = [];
+    const client = await connectedClient(new CliProvider({ runner: funnelRunner(calls) }));
+    const result = await client.callTool({
+      name: "share_port",
+      arguments: { port: 3000, public: true },
+    });
+    expect(result.isError).toBe(true);
+    const err = payload(result).error;
+    expect(err.code).toBe("FUNNEL_DISABLED");
+    expect(err.remedy).toContain("TAILSCALE_MCP_ALLOW_FUNNEL=1");
+    expect(calls).toHaveLength(0);
+
+    const tools = await client.listTools();
+    expect(tools.tools.find((t) => t.name === "share_port")?.description).toMatch(
+      /Funnel is DISABLED/,
+    );
+  });
+
+  it("public=true uses funnel and flags the open-internet scope when allowed", async () => {
+    const calls: RunnerCall[] = [];
+    const client = await connectedClient(new CliProvider({ runner: funnelRunner(calls) }), {
+      allowFunnel: true,
+    });
     const result = await client.callTool({
       name: "share_port",
       arguments: { port: 3000, public: true },
@@ -65,6 +89,14 @@ describe("share_port", () => {
     expect(data.public).toBe(true);
     expect(data.scope).toContain("OPEN INTERNET");
     expect(calls[0].args[0]).toBe("funnel");
+  });
+
+  it("read-only mode registers no tools that change the serve config", async () => {
+    const client = await connectedClient(new CliProvider({ runner: mockRunner({}) }), {
+      readOnly: true,
+    });
+    const names = (await client.listTools()).tools.map((t) => t.name).sort();
+    expect(names).toEqual(["generate_ssh_config", "ping_all", "share_status", "tailnet_status"]);
   });
 
   it("maps serve-not-enabled to a structured SERVE_NOT_ENABLED error", async () => {
@@ -94,52 +126,188 @@ describe("share_port", () => {
 
 describe("share_status / stop_share", () => {
   it("reports no active sessions for an empty serve config", async () => {
+    // `{}` is what tailscale 1.102.3 prints for an empty config.
+    const client = await connectedClient(
+      new CliProvider({ runner: mockRunner({ "serve status --json": okResult("{}\n") }) }),
+    );
+    const data = payload(await client.callTool({ name: "share_status", arguments: {} }));
+    expect(data).toEqual({ active: false, publicExposure: false, endpoints: [] });
+  });
+
+  it("lists endpoints with per-endpoint public flags and foreground sessions", async () => {
     const client = await connectedClient(
       new CliProvider({
-        runner: mockRunner({ "serve status": okResult("No serve config\n") }),
+        runner: mockRunner({ "serve status --json": okResult(fixture("serve-status.json")) }),
       }),
     );
     const data = payload(await client.callTool({ name: "share_status", arguments: {} }));
-    expect(data.active).toBe(false);
+    expect(data.active).toBe(true);
+    expect(data.publicExposure).toBe(true);
+    const byUrl = Object.fromEntries(data.endpoints.map((e: any) => [e.url, e]));
+    expect(Object.keys(byUrl).sort()).toEqual([
+      "https://devpc.tail1234.ts.net/",
+      "https://devpc.tail1234.ts.net/api",
+      "https://devpc.tail1234.ts.net:10000/",
+      "https://devpc.tail1234.ts.net:8443/docs",
+    ]);
+    expect(byUrl["https://devpc.tail1234.ts.net/api"]).toMatchObject({
+      httpsPort: 443,
+      path: "/api",
+      target: "http://127.0.0.1:4000",
+      targetType: "proxy",
+      public: true,
+      foreground: false,
+    });
+    expect(byUrl["https://devpc.tail1234.ts.net:8443/docs"]).toMatchObject({
+      targetType: "path",
+      public: false,
+    });
+    expect(byUrl["https://devpc.tail1234.ts.net:10000/"]).toMatchObject({
+      targetType: "text",
+      foreground: true,
+    });
+    expect(data.tcpForwards).toEqual([
+      { port: 5432, target: "127.0.0.1:5432", public: false, foreground: false },
+    ]);
   });
 
-  it("stop_share without port resets everything", async () => {
-    const calls: RunnerCall[] = [];
+  it("falls back to text status on CLIs without serve status --json", async () => {
     const client = await connectedClient(
-      new CliProvider({ runner: mockRunner({ "serve reset": okResult("") }, calls) }),
+      new CliProvider({
+        runner: mockRunner({
+          "serve status --json": {
+            status: 2,
+            stdout: "",
+            stderr: "flag provided but not defined: -json\n",
+          },
+          "serve status": okResult("https://devpc.tail1234.ts.net (tailnet only)\n|-- / proxy http://127.0.0.1:3000\n"),
+        }),
+      }),
     );
-    const data = payload(await client.callTool({ name: "stop_share", arguments: {} }));
+    const data = payload(await client.callTool({ name: "share_status", arguments: {} }));
+    expect(data.active).toBe(true);
+    expect(data.publicExposure).toBeNull();
+    expect(data.status).toContain("proxy http://127.0.0.1:3000");
+  });
+
+  /**
+   * A stateful stand-in for the daemon's serve config: share_port adds a
+   * handler on :443, `--https=N [--set-path=P] off` removes one, `reset`
+   * clears all, and `serve status --json` reports the current state.
+   */
+  function fakeServe(initial: Record<string, string> = {}) {
+    const host = "devpc.tail1234.ts.net";
+    const handlers = new Map(Object.entries(initial)); // "443/path" -> proxy
+    const calls: RunnerCall[] = [];
+    const runner = async (bin: string, args: string[]): Promise<CliResult> => {
+      calls.push({ bin, args });
+      const key = args.join(" ");
+      if (key === "serve status --json") {
+        const web: Record<string, { Handlers: Record<string, { Proxy: string }> }> = {};
+        for (const [k, proxy] of handlers) {
+          const [port, ...rest] = k.split("/");
+          const hp = `${host}:${port}`;
+          (web[hp] ??= { Handlers: {} }).Handlers[`/${rest.join("/")}`] = { Proxy: proxy };
+        }
+        return okResult(JSON.stringify(handlers.size ? { Web: web } : {}));
+      }
+      if (key === "serve reset") {
+        handlers.clear();
+        return okResult("");
+      }
+      const setPath = args.find((a) => a.startsWith("--set-path="))?.slice(11) ?? "/";
+      if (args[args.length - 1] === "off") {
+        const port = args.find((a) => a.startsWith("--https="))!.slice(8);
+        handlers.delete(`${port}${setPath}`);
+        return okResult("");
+      }
+      if (args[0] === "serve" && args[1] === "--bg") {
+        handlers.set(`443${setPath}`, `http://127.0.0.1:${args[args.length - 1]}`);
+        return okResult(`Available within your tailnet:\n\nhttps://${host}${setPath}\n`);
+      }
+      throw new Error(`fakeServe: unrouted ${key}`);
+    };
+    return { runner, calls, handlers };
+  }
+
+  const handLeft = { "443/": "http://127.0.0.1:8123" }; // e.g. a Home Assistant share
+
+  it("stop_share with no arguments stops nothing and lists the active endpoints", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const result = await client.callTool({ name: "stop_share", arguments: {} });
+    expect(result.isError).toBe(true);
+    const err = payload(result).error;
+    expect(err.code).toBe("TARGET_REQUIRED");
+    expect(err.message).toContain("https://devpc.tail1234.ts.net/");
+    expect(fake.handlers.size).toBe(1);
+    expect(fake.calls.map((c) => c.args.join(" "))).toEqual(["serve status --json"]);
+  });
+
+  it("stop_share all=true resets everything and reports what was removed", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const data = payload(await client.callTool({ name: "stop_share", arguments: { all: true } }));
     expect(data.stopped).toBe("all");
-    expect(calls[0].args).toEqual(["serve", "reset"]);
+    expect(data.removed.map((e: any) => e.url)).toEqual(["https://devpc.tail1234.ts.net/"]);
+    expect(data.remaining.active).toBe(false);
+    expect(fake.calls.map((c) => c.args.join(" "))).toContain("serve reset");
   });
 
   it("stop_share with httpsPort turns off that endpoint only", async () => {
-    const calls: RunnerCall[] = [];
-    const client = await connectedClient(
-      new CliProvider({ runner: mockRunner({ serve: okResult("") }, calls) }),
+    const fake = fakeServe({ ...handLeft, "443/api": "http://127.0.0.1:4000" });
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const data = payload(
+      await client.callTool({ name: "stop_share", arguments: { httpsPort: 443 } }),
     );
-    await client.callTool({ name: "stop_share", arguments: { httpsPort: 443 } });
-    expect(calls[0].args).toEqual(["serve", "--https=443", "off"]);
+    expect(fake.calls[1].args).toEqual(["serve", "--https=443", "off"]);
+    expect(data.removed.map((e: any) => e.path)).toEqual(["/"]);
+    expect(data.remaining.endpoints.map((e: any) => e.path)).toEqual(["/api"]);
   });
 
   it("round-trips a path-mounted share: share_port at /api, stop_share removes just /api", async () => {
-    const calls: RunnerCall[] = [];
-    const client = await connectedClient(
-      new CliProvider({
-        runner: mockRunner(
-          { serve: okResult("Available within your tailnet:\n\nhttps://devpc.tail1234.ts.net/api\n") },
-          calls,
-        ),
-      }),
-    );
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
     await client.callTool({ name: "share_port", arguments: { port: 3000, path: "/api/" } });
-    expect(calls[0].args).toEqual(["serve", "--bg", "--set-path=/api", "3000"]);
+    expect(fake.calls[0].args).toEqual(["serve", "--bg", "--set-path=/api", "3000"]);
 
     const data = payload(
       await client.callTool({ name: "stop_share", arguments: { path: "/api" } }),
     );
-    expect(calls[1].args).toEqual(["serve", "--https=443", "--set-path=/api", "off"]);
+    expect(fake.calls[2].args).toEqual(["serve", "--https=443", "--set-path=/api", "off"]);
     expect(data.stopped).toEqual({ httpsPort: 443, path: "/api" });
+    expect(data.removed.map((e: any) => e.url)).toEqual(["https://devpc.tail1234.ts.net/api"]);
+  });
+
+  it("stop_share mine=true stops only shares created in this session", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    await client.callTool({ name: "share_port", arguments: { port: 3000, path: "/app" } });
+    await client.callTool({ name: "share_port", arguments: { port: 4000, path: "/api" } });
+
+    const data = payload(await client.callTool({ name: "stop_share", arguments: { mine: true } }));
+    expect(data.stopped).toEqual([
+      { httpsPort: 443, path: "/app" },
+      { httpsPort: 443, path: "/api" },
+    ]);
+    expect(data.removed.map((e: any) => e.path).sort()).toEqual(["/api", "/app"]);
+    // The hand-made share on "/" survives.
+    expect(data.remaining.endpoints.map((e: any) => e.path)).toEqual(["/"]);
+
+    // A second call has nothing left to stop.
+    const again = payload(await client.callTool({ name: "stop_share", arguments: { mine: true } }));
+    expect(again.stopped).toEqual([]);
+  });
+
+  it("stop_share rejects combining targets", async () => {
+    const fake = fakeServe(handLeft);
+    const client = await connectedClient(new CliProvider({ runner: fake.runner }));
+    const result = await client.callTool({
+      name: "stop_share",
+      arguments: { all: true, httpsPort: 443 },
+    });
+    expect(payload(result).error.code).toBe("INVALID_ARGUMENTS");
+    expect(fake.calls).toHaveLength(0);
   });
 
   it.each(["api", "", "/has space", "/q?x=1", "/../etc"])(

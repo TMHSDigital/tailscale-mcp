@@ -355,6 +355,28 @@ describe("generate_ssh_config tool", () => {
     },
   );
 
+  it("refuses to write in read-only mode but still serves the dry run", async () => {
+    dir = mkdtempSync(join(tmpdir(), "ts-mcp-ssh-"));
+    const provider = new CliProvider({
+      runner: mockRunner({ "status --json": okResult(fixture("status-running.json")) }),
+    });
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    registerAll(server, { provider, sshDir: dir, readOnly: true });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    await Promise.all([server.connect(st), client.connect(ct)]);
+
+    const dry = payload(await client.callTool({ name: "generate_ssh_config", arguments: {} }));
+    expect(dry.configText).toContain("Host raspi");
+
+    const result = await client.callTool({
+      name: "generate_ssh_config",
+      arguments: { write: true, target: "user_ssh_config" },
+    });
+    expect(payload(result).error.code).toBe("READ_ONLY");
+    expect(readdirSync(dir)).toHaveLength(0);
+  });
+
   it("onlineOnly filters offline peers out of the config", async () => {
     const client = await connectedClient();
     const result = await client.callTool({

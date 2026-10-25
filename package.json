@@ -1,6 +1,6 @@
 {
   "name": "@tmhs/tailscale-mcp",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "MCP server for safe programmatic access to the local Tailscale daemon: tailnet discovery, SSH config generation, port sharing via Serve/Funnel, and latency matrices.",
   "type": "module",
   "main": "dist/index.js",
@@ -16,6 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "gen:tools": "vitest run src/__tests__/tools-manifest.test.ts -u",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "prepublishOnly": "npm run build"
   },

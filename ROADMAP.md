@@ -2,7 +2,7 @@
 
 # Roadmap
 
-**Current:** v0.1.3 (published to npm)
+**Current:** v0.2.0 (published to npm)
 
 Direction: stay the *safe, structured window into Tailscale* — dry-run defaults, explicit opt-in for anything dangerous, structured errors with remedies. Every new tool is judged against that bar before it ships.
 
@@ -28,7 +28,8 @@ Informed by [docs/research/Tailscale MCP Landscape Research.md](docs/research/Ta
 
 No new credentials, no new trust boundary. Ordered by value-per-effort.
 
-- [ ] **0.2.0 — Tool annotations on every tool** (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`).
+- [x] **0.2.0 — Safety hardening** (pulled forward ahead of annotations because it changes defaults): Funnel denied unless `TAILSCALE_MCP_ALLOW_FUNNEL=1`, `TAILSCALE_MCP_READONLY=1`, `stop_share` requires an explicit target and reports before/after, structured `share_status`, bounded CLI timeouts, and correct direct/DERP/peer-relay ping paths.
+- [ ] **Tool annotations on every tool** (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`).
   The spec treats unannotated tools as destructive/non-idempotent, and Claude Code uses `readOnlyHint` as a concurrency signal — today our read-only tools are serialized and over-confirmed for no reason.
   *Done when:* all tools annotated (`tailnet_status`/`share_status`/`ping_all` read-only; `stop_share` destructive+idempotent; `share_port` non-read-only+open-world when `public`); `mcp-tools.json` reflects annotations; README documents them.
 - [ ] **`exit_node` tools** — `list_exit_nodes` (advertised exit nodes with location/online), `set_exit_node` / `clear_exit_node` (mutating: response includes before/after state so the agent can show the diff).
@@ -54,7 +55,7 @@ A new trust boundary: the Admin API needs OAuth client credentials. Everything h
 - [ ] **Device management tools** — list all tailnet devices (not just peers), authorize, rename, set tags, key-expiry status. Mutations return before/after state.
 - [ ] **ACL dry-run pre-flight tools** — `acl_validate` (syntax + semantic check of a proposed policy) and `acl_preview` (which connections a change would allow/deny), so a human reviews the effect *before* applying anything by hand. No server in the landscape offers this; it is the flagship v0.3 feature. Still no blind ACL writes — ever.
 - [ ] **Scoped auth-key creation** — ephemeral, preauthorized, tag-inheriting keys via a tag-locked OAuth client (the control plane guarantees generated keys inherit the client's tags). The homelab "provision a new node from chat" workflow.
-- [ ] **Permission tiers via env** — `TAILSCALE_MCP_READONLY=1` (mutating tools unregistered), `TAILSCALE_MCP_ALLOW_FUNNEL=0` (Funnel refused even with `public: true`), risk-level gate evaluated before every mutating tool.
+- [x] **Permission tiers via env** — shipped early in 0.2.0, with Funnel *denied* by default: `TAILSCALE_MCP_READONLY=1` (mutating tools unregistered), `TAILSCALE_MCP_ALLOW_FUNNEL=1` required for `public: true`. Remaining here: extend the read-only gate to the Admin API tools as they land.
 
 ## v0.4.x — Agentic ergonomics + identity-gated execution
 

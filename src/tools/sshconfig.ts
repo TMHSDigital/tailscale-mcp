@@ -6,6 +6,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./index.js";
 import { fail, ok } from "./helpers.js";
 import { TailscaleError } from "../providers/types.js";
+import { READONLY_ENV_VAR } from "../config.js";
 import {
   applyManagedBlock,
   DEDICATED_FILE_NAME,
@@ -70,7 +71,8 @@ export function register(server: McpServer, ctx: ToolContext): void {
       "(~/.ssh/tailscale_dev_config) and returns instructions for adding an Include " +
       "line to ~/.ssh/config (never applied automatically). Direct editing of " +
       "~/.ssh/config itself additionally requires target=\"user_ssh_config\" and is " +
-      "idempotent between managed markers, never touching content outside them.",
+      "idempotent between managed markers, never touching content outside them." +
+      (ctx.readOnly ? " This server is read-only: write=true is refused." : ""),
     {
       write: z
         .boolean()
@@ -120,6 +122,15 @@ export function register(server: McpServer, ctx: ToolContext): void {
               `~/.ssh/${DEDICATED_FILE_NAME}, or additionally target="user_ssh_config" ` +
               "to edit ~/.ssh/config in place between managed markers.",
           });
+        }
+
+        if (ctx.readOnly) {
+          throw new TailscaleError(
+            "READ_ONLY",
+            "This server runs in read-only mode, so nothing was written. The generated " +
+              "config is available with write=false.",
+            `Unset ${READONLY_ENV_VAR} in the MCP client config to allow writes.`,
+          );
         }
 
         const dir = sshDir();

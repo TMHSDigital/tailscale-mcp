@@ -49,6 +49,21 @@ The server looks for `tailscale` on `PATH`, then in the platform's default insta
 }
 ```
 
+### Timeouts
+
+Every `tailscale` invocation is bounded, by default to 10 seconds. A hung daemon returns a structured `TIMEOUT` error instead of stalling the agent. Set `TAILSCALE_MCP_TIMEOUT_MS` to raise the limit for slow machines or very large tailnets. `share_port` waits up to 15 seconds and `ping` scales with `count` and `timeoutMs`; `ping_all` as a whole is capped at 45 seconds.
+
+### Configuration reference
+
+All settings are environment variables in the server's `env` block. Boolean flags accept `1/true/yes/on` or `0/false/no/off`. Any other value stops the server at startup, so a typo can never silently loosen a safety setting.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `TAILSCALE_MCP_ALLOW_FUNNEL` | off | Allows `share_port {"public": true}`, which exposes a port to the **open internet** via Funnel. While off, the call returns `FUNNEL_DISABLED` and nothing is shared. |
+| `TAILSCALE_MCP_READONLY` | off | Monitoring-only mode: `share_port` and `stop_share` are not registered, and `generate_ssh_config` refuses `write: true` (`READ_ONLY`). |
+| `TAILSCALE_MCP_BIN` | (search) | Path to the `tailscale` binary. |
+| `TAILSCALE_MCP_TIMEOUT_MS` | `10000` | Per-call CLI timeout. |
+
 ### Linux: Serve/Funnel permissions
 
 On Linux only root or the configured operator can change Serve/Funnel settings. If `share_port` or `stop_share` returns `PERMISSION_DENIED`, allow your user once:
@@ -101,34 +116,53 @@ Shares a local port via Tailscale Serve. **Tailnet-only by default.** Inputs: `p
 {"port": 3000, "public": false, "scope": "tailnet-only (Serve)", "urls": ["https://devpc.tail1234.ts.net/"]}
 ```
 
-`public: true` switches to Funnel and exposes the port to the open internet. See the security notes below.
+`public: true` switches to Funnel and exposes the port to the open internet. It's refused unless `TAILSCALE_MCP_ALLOW_FUNNEL=1` is set; see the security notes below.
 
 ### share_status
 
-Reports active Serve/Funnel sessions: `{"active": false, "status": "No serve config"}`.
+Reports active Serve/Funnel sessions as structured endpoints, parsed from `tailscale serve status --json`. Each endpoint has its own `public` flag, which is true when Funnel exposes it to the internet, and `publicExposure` is true when anything is public:
+
+```json
+{
+  "active": true,
+  "publicExposure": true,
+  "endpoints": [
+    {"url": "https://devpc.tail1234.ts.net/", "host": "devpc.tail1234.ts.net", "httpsPort": 443, "scheme": "https", "path": "/", "target": "http://127.0.0.1:3000", "targetType": "proxy", "public": true, "foreground": false}
+  ]
+}
+```
+
+Raw TCP forwards appear under `tcpForwards`. On CLIs too old for `--json`, the text status comes back under `status` and `publicExposure` is `null`.
 
 ### stop_share
 
-Without arguments clears the entire serve/funnel configuration. With `httpsPort` and/or `path` it turns off one mount: `httpsPort` is the serve port shown in `share_status` (default 443, not the proxied local port), and `path` is the mount path given to `share_port` (default `/`). For example, `{"path": "/api"}` undoes `share_port {"port": 3000, "path": "/api"}`.
+Stops shares. Name exactly one target:
+
+- `httpsPort` and/or `path` turns off one mount. `httpsPort` is the serve port shown in `share_status` (default 443, not the proxied local port), and `path` is the mount path given to `share_port` (default `/`). For example, `{"path": "/api"}` undoes `share_port {"port": 3000, "path": "/api"}`.
+- `mine: true` stops only the shares `share_port` created during this server session.
+- `all: true` clears the entire serve/funnel configuration, **including shares you set up outside this server**.
+
+With no arguments nothing is stopped: the tool returns `TARGET_REQUIRED` and lists the active endpoints. Every successful call returns `removed` (the endpoints that went away) and `remaining` (the `share_status` view afterwards).
 
 Mount paths must start with `/` and use only letters, digits, and `. _ ~ - /`, with no `.` or `..` segments. A trailing slash is dropped.
 
 ### ping_all
 
-Concurrent `tailscale ping` against peers (bounded to 5 in flight, one ping each with a timeout). Inputs: `count`, `timeoutMs`, `onlineOnly` (default true).
+Concurrent `tailscale ping` against peers (bounded to 5 in flight, with a per-ping timeout). Inputs: `count`, `timeoutMs`, `onlineOnly` (default true).
 
 ```json
 {
   "pinged": 2,
   "reachable": 1,
+  "timedOut": false,
   "matrix": [
-    {"hostname": "raspi", "target": "100.101.1.20", "reachable": true, "latencyMs": 3, "path": "direct", "via": "192.168.1.20:41641"},
-    {"hostname": "exitbox", "target": "100.101.1.40", "reachable": false, "latencyMs": null, "path": null, "via": null}
+    {"hostname": "raspi", "target": "100.101.1.20", "reachable": true, "latencyMs": 3, "path": "direct", "via": "192.168.1.20:41641", "attempts": 3, "replies": 3},
+    {"hostname": "exitbox", "target": "100.101.1.40", "reachable": false, "latencyMs": null, "path": null, "via": null, "attempts": 1, "replies": 0}
   ]
 }
 ```
 
-`path` distinguishes a direct peer-to-peer connection from a DERP relay, so an agent can tell "works but relayed" from "fast direct path".
+`path` is `direct` (peer-to-peer), `derp` (relayed through a Tailscale DERP server), `peer-relay` (relayed through one of your nodes), or `unknown`, so an agent can tell "works but relayed" from "fast direct path". `tailscale ping` keeps pinging until a direct path comes up, so `path` and `latencyMs` describe the last reply, i.e. the settled path. The whole call is capped at 45 seconds: peers that haven't answered by then come back with an `error` and `timedOut: true`.
 
 ## Agentic workflow example
 
@@ -137,14 +171,15 @@ An agent asked to "deploy this to my dev VPS and show me the result" can do the 
 1. `tailnet_status {"onlineOnly": true}` finds the VPS node and its MagicDNS name (`devbox.tail1234.ts.net`), with no hardcoded IPs.
 2. `generate_ssh_config {"write": true, "user": "deploy"}` writes `~/.ssh/tailscale_dev_config`; the agent shows the returned one-line `Include` instruction, and after the user adds it, `ssh devbox` resolves through the tailnet.
 3. `ping_all` confirms the node is reachable and whether the path is direct or relayed before starting a large transfer.
-4. After deploying, `share_port {"port": 8080}` returns a tailnet-only URL teammates on the tailnet can open. Nothing touches the public internet unless the agent is explicitly told to pass `public: true`.
+4. After deploying, `share_port {"port": 8080}` returns a tailnet-only URL teammates on the tailnet can open. Nothing touches the public internet unless you have enabled Funnel with `TAILSCALE_MCP_ALLOW_FUNNEL=1` and the agent is explicitly told to pass `public: true`.
 
 ## Security notes on Funnel
 
 - `share_port` defaults to tailnet-only Serve. Nothing is reachable from outside your tailnet.
-- `public: true` uses Tailscale Funnel: the URL is reachable by **anyone on the internet**, not just your tailnet. The tool description carries this warning so agents surface it before acting.
+- **Funnel is off unless you turn it on.** `public: true` uses Tailscale Funnel, which makes the URL reachable by **anyone on the internet**, not just your tailnet. A default install refuses it with `FUNNEL_DISABLED`, so a prompt-injected agent can't expose a port by itself. To allow it, set `TAILSCALE_MCP_ALLOW_FUNNEL=1` in the client config. Even then the tool description carries the warning, so agents surface it before acting.
+- `TAILSCALE_MCP_READONLY=1` removes the share tools entirely, for agents that should only observe.
 - Serve and Funnel must be enabled per-tailnet in the admin console. When they are not, the tool returns a structured `SERVE_NOT_ENABLED` error containing the exact enablement URL and changes nothing.
-- `stop_share` (no arguments) is the kill switch: it clears the entire serve/funnel configuration.
+- `stop_share {"all": true}` is the kill switch: it clears the entire serve/funnel configuration. Calling it without arguments never deletes anything.
 - This server never reads or stores `TS_AUTHKEY` or any other credential.
 
 ## Development

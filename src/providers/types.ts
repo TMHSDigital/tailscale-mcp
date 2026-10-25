@@ -55,16 +55,30 @@ export interface PingOptions {
   count?: number;
   /** Per-attempt timeout in milliseconds. */
   timeoutMs?: number;
+  /** Cancels the ping (the process is killed and TIMEOUT is thrown). */
+  signal?: AbortSignal;
 }
+
+/**
+ * How a reply travelled: "direct" peer-to-peer, relayed through a Tailscale
+ * "derp" server, relayed through a "peer-relay" node, or "unknown" (e.g.
+ * TSMP/ICMP ping types that do not report a path).
+ */
+export type PingPath = "direct" | "derp" | "peer-relay" | "unknown";
 
 export interface PingResult {
   target: string;
   reachable: boolean;
+  /** Latency of the last reply, i.e. on the settled path. */
   latencyMs: number | null;
-  /** "direct" when a peer-to-peer path was used, "derp" when relayed. */
-  path: "direct" | "derp" | null;
-  /** The endpoint or DERP region the reply came through. */
+  /** Path of the last reply; null when unreachable. */
+  path: PingPath | null;
+  /** The endpoint, DERP region, or peer relay the last reply came through. */
   via: string | null;
+  /** Pings sent (replies plus timed-out attempts). */
+  attempts: number;
+  /** Replies received. */
+  replies: number;
   /** Raw CLI output, for diagnostics. */
   raw: string;
 }
@@ -88,11 +102,47 @@ export interface ServeResult {
   raw: string;
 }
 
+/** One HTTP(S) mount in the serve config. */
+export interface ServeEndpoint {
+  url: string;
+  /** The SNI name the endpoint is served under (this node's MagicDNS name). */
+  host: string;
+  /** The serve port (443 unless set with --https / --http). */
+  httpsPort: number;
+  scheme: "https" | "http";
+  /** Mount path, e.g. "/" or "/api". */
+  path: string;
+  /** What the mount serves: proxy URL, file path, text, or redirect target. */
+  target: string | null;
+  targetType: "proxy" | "path" | "text" | "redirect" | "unknown";
+  /** True when Funnel exposes this endpoint to the public internet. */
+  public: boolean;
+  /** True for a foreground `tailscale serve` session (not --bg). */
+  foreground: boolean;
+}
+
+/** A raw TCP forward (`tailscale serve --tcp`). */
+export interface TcpForward {
+  port: number;
+  target: string;
+  public: boolean;
+  foreground: boolean;
+}
+
+export interface ServeStatus {
+  endpoints: ServeEndpoint[];
+  tcpForwards: TcpForward[];
+  /** False when only the text form of `serve status` was available. */
+  parsed: boolean;
+  /** Raw CLI output, for diagnostics. */
+  raw: string;
+}
+
 export interface TailscaleProvider {
   status(): Promise<TailnetStatus>;
   ping(target: string, opts?: PingOptions): Promise<PingResult>;
   serve(opts: ServeOptions): Promise<ServeResult>;
-  serveStatus(): Promise<string>;
+  serveStatus(): Promise<ServeStatus>;
   /**
    * With no arguments, clear the entire serve config. Otherwise turn off the
    * mount at `path` (default "/") on HTTPS port `port` (default 443).
@@ -111,6 +161,11 @@ export type TailscaleErrorCode =
   | "NEEDS_LOGIN"
   | "SERVE_NOT_ENABLED"
   | "PERMISSION_DENIED"
+  | "TIMEOUT"
+  | "INVALID_ARGUMENTS"
+  | "TARGET_REQUIRED"
+  | "FUNNEL_DISABLED"
+  | "READ_ONLY"
   | "SSH_CONFIG_MARKERS_CORRUPT"
   | "SSH_CONFIG_UNREADABLE"
   | "CLI_ERROR";
