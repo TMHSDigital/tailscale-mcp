@@ -5,7 +5,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CliProvider, CliResult } from "../providers/cli.js";
 import { registerAll } from "../tools/index.js";
 import { boundedMap, PING_CONCURRENCY } from "../tools/ping.js";
-import { fixture, mockRunner, okResult, RunnerCall } from "./support.js";
+import { fixture, mockRunner, okResult, payload, RunnerCall } from "./support.js";
 
 async function connectedClient(provider: CliProvider): Promise<Client> {
   const server = new McpServer({ name: "test", version: "0.0.0" });
@@ -14,11 +14,6 @@ async function connectedClient(provider: CliProvider): Promise<Client> {
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([server.connect(st), client.connect(ct)]);
   return client;
-}
-
-function payload(result: { content?: unknown }): Record<string, any> {
-  const content = result.content as Array<{ text: string }>;
-  return JSON.parse(content[0].text);
 }
 
 describe("share_port", () => {

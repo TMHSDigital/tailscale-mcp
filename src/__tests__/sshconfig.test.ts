@@ -14,7 +14,7 @@ import {
   renderHostBlocks,
 } from "../sshconfig.js";
 import type { TailscaleNode } from "../providers/types.js";
-import { fixture, mockRunner, okResult } from "./support.js";
+import { fixture, mockRunner, okResult, payload } from "./support.js";
 
 function node(overrides: Partial<TailscaleNode>): TailscaleNode {
   return {
@@ -100,11 +100,6 @@ describe("generate_ssh_config tool", () => {
     const client = new Client({ name: "test-client", version: "0.0.0" });
     await Promise.all([server.connect(st), client.connect(ct)]);
     return client;
-  }
-
-  function payload(result: { content?: unknown }): Record<string, any> {
-    const content = result.content as Array<{ text: string }>;
-    return JSON.parse(content[0].text);
   }
 
   it("dry-run by default: returns config text, writes nothing", async () => {
