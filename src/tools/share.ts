@@ -146,7 +146,9 @@ export function register(server: McpServer, ctx: ToolContext): void {
     {
       title: "Stop sharing",
       description:
-        "Stop sharing. Name exactly one target: httpsPort and/or path turns off that one " +
+        "Stop Serve/Funnel shares: one mount, the shares this server created, or all of " +
+        "them, reporting what was removed. Name exactly one target: httpsPort and/or " +
+        "path turns off that one " +
         "mount (httpsPort is the serve port shown in share_status, typically 443, not the " +
         "proxied local port; path is the mount path given to share_port, default \"/\"); " +
         "mine=true stops only the shares this server created in this session; all=true " +

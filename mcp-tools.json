@@ -526,7 +526,7 @@
   {
     "name": "stop_share",
     "title": "Stop sharing",
-    "description": "Stop sharing. Name exactly one target: httpsPort and/or path turns off that one mount (httpsPort is the serve port shown in share_status, typically 443, not the proxied local port; path is the mount path given to share_port, default \"/\"); mine=true stops only the shares this server created in this session; all=true clears the entire serve/funnel configuration, including shares set up outside this server. With no arguments nothing is stopped and the active endpoints are listed. Returns what was removed and what remains.",
+    "description": "Stop Serve/Funnel shares: one mount, the shares this server created, or all of them, reporting what was removed. Name exactly one target: httpsPort and/or path turns off that one mount (httpsPort is the serve port shown in share_status, typically 443, not the proxied local port; path is the mount path given to share_port, default \"/\"); mine=true stops only the shares this server created in this session; all=true clears the entire serve/funnel configuration, including shares set up outside this server. With no arguments nothing is stopped and the active endpoints are listed. Returns what was removed and what remains.",
     "inputSchema": {
       "type": "object",
       "properties": {
