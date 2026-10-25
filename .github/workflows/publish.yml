@@ -25,6 +25,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      # Gate: the exact tarball about to be published must install and serve
+      # MCP over stdio.
+      - run: npm run test:packed
 
       - name: Check if this version is already published
         id: pub

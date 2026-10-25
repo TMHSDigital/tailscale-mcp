@@ -36,6 +36,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      # Pack, install the tarball into a clean project, and speak MCP to it.
+      - run: npm run test:packed
 
   audit:
     name: npm audit (runtime dependencies)
