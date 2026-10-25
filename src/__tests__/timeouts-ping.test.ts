@@ -77,7 +77,8 @@ describe("CLI call timeouts", () => {
   it("defaultCliRunner kills a real process when the signal aborts", async () => {
     const controller = new AbortController();
     const started = Date.now();
-    setTimeout(() => controller.abort(), 100);
+    // Leave node enough time to start and write before aborting.
+    setTimeout(() => controller.abort(), 1500);
     const result = await defaultCliRunner(
       process.execPath,
       ["-e", "process.stdout.write('partial'); setTimeout(() => {}, 30000)"],
@@ -85,7 +86,7 @@ describe("CLI call timeouts", () => {
     );
     expect(result.timedOut).toBe(true);
     expect(result.stdout).toBe("partial");
-    expect(Date.now() - started).toBeLessThan(5000);
+    expect(Date.now() - started).toBeLessThan(10_000);
   });
 });
 

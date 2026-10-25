@@ -109,7 +109,19 @@ Shares a local port via Tailscale Serve. **Tailnet-only by default.** Inputs: `p
 
 ### share_status
 
-Reports active Serve/Funnel sessions: `{"active": false, "status": "No serve config"}`.
+Reports active Serve/Funnel sessions as structured endpoints, parsed from `tailscale serve status --json`. Each endpoint has its own `public` flag, which is true when Funnel exposes it to the internet, and `publicExposure` is true when anything is public:
+
+```json
+{
+  "active": true,
+  "publicExposure": true,
+  "endpoints": [
+    {"url": "https://devpc.tail1234.ts.net/", "host": "devpc.tail1234.ts.net", "httpsPort": 443, "scheme": "https", "path": "/", "target": "http://127.0.0.1:3000", "targetType": "proxy", "public": true, "foreground": false}
+  ]
+}
+```
+
+Raw TCP forwards appear under `tcpForwards`. On CLIs too old for `--json`, the text status comes back under `status` and `publicExposure` is `null`.
 
 ### stop_share
 

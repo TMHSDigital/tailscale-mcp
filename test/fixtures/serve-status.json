@@ -1,0 +1,53 @@
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    },
+    "8443": {
+      "HTTPS": true
+    },
+    "5432": {
+      "TCPForward": "127.0.0.1:5432"
+    }
+  },
+  "Web": {
+    "devpc.tail1234.ts.net:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://127.0.0.1:3000"
+        },
+        "/api": {
+          "Proxy": "http://127.0.0.1:4000"
+        }
+      }
+    },
+    "devpc.tail1234.ts.net:8443": {
+      "Handlers": {
+        "/docs": {
+          "Path": "/home/dev/site"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "devpc.tail1234.ts.net:443": true
+  },
+  "Foreground": {
+    "abcd1234": {
+      "TCP": {
+        "10000": {
+          "HTTPS": true
+        }
+      },
+      "Web": {
+        "devpc.tail1234.ts.net:10000": {
+          "Handlers": {
+            "/": {
+              "Text": "hello"
+            }
+          }
+        }
+      }
+    }
+  }
+}

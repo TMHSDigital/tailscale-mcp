@@ -5,8 +5,11 @@ import {
   PingOptions,
   PingPath,
   PingResult,
+  ServeEndpoint,
   ServeOptions,
   ServeResult,
+  ServeStatus,
+  TcpForward,
   TailnetStatus,
   TailscaleError,
   TailscaleNode,
@@ -211,6 +214,79 @@ export function parsePongs(stdout: string): Pong[] {
     }
   }
   return pongs;
+}
+
+// Mirrors ipn.ServeConfig as printed by `tailscale serve status --json`
+// (ipn/serve.go): Web is keyed "$SNI_NAME:$PORT" with handlers keyed by
+// mount point, AllowFunnel by the same host:port, TCP by port number.
+interface RawHttpHandler {
+  Proxy?: string;
+  Path?: string;
+  Text?: string;
+  Redirect?: string;
+}
+
+interface RawServeConfig {
+  TCP?: Record<string, { HTTPS?: boolean; HTTP?: boolean; TCPForward?: string } | null>;
+  Web?: Record<string, { Handlers?: Record<string, RawHttpHandler | null> } | null>;
+  AllowFunnel?: Record<string, boolean>;
+  Foreground?: Record<string, RawServeConfig | null>;
+}
+
+function handlerTarget(h: RawHttpHandler): Pick<ServeEndpoint, "target" | "targetType"> {
+  if (h.Proxy) return { target: h.Proxy, targetType: "proxy" };
+  if (h.Path) return { target: h.Path, targetType: "path" };
+  if (h.Text !== undefined) return { target: h.Text, targetType: "text" };
+  if (h.Redirect) return { target: h.Redirect, targetType: "redirect" };
+  return { target: null, targetType: "unknown" };
+}
+
+/** Flatten a serve config (including foreground sessions) into endpoint rows. */
+export function flattenServeConfig(
+  config: RawServeConfig,
+  foreground = false,
+): Pick<ServeStatus, "endpoints" | "tcpForwards"> {
+  const endpoints: ServeEndpoint[] = [];
+  const tcpForwards: TcpForward[] = [];
+  const funnel = config.AllowFunnel ?? {};
+
+  for (const [hostPort, web] of Object.entries(config.Web ?? {})) {
+    const sep = hostPort.lastIndexOf(":");
+    const host = hostPort.slice(0, sep);
+    const port = Number(hostPort.slice(sep + 1));
+    const scheme = config.TCP?.[String(port)]?.HTTP ? "http" : "https";
+    const defaultPort = scheme === "https" ? 443 : 80;
+    for (const [path, handler] of Object.entries(web?.Handlers ?? {})) {
+      endpoints.push({
+        url: `${scheme}://${host}${port === defaultPort ? "" : `:${port}`}${path}`,
+        host,
+        httpsPort: port,
+        scheme,
+        path,
+        ...handlerTarget(handler ?? {}),
+        public: funnel[hostPort] === true,
+        foreground,
+      });
+    }
+  }
+
+  for (const [port, handler] of Object.entries(config.TCP ?? {})) {
+    if (!handler?.TCPForward) continue;
+    tcpForwards.push({
+      port: Number(port),
+      target: handler.TCPForward,
+      public: Object.entries(funnel).some(([hp, on]) => on && hp.endsWith(`:${port}`)),
+      foreground,
+    });
+  }
+
+  for (const session of Object.values(config.Foreground ?? {})) {
+    if (!session) continue;
+    const nested = flattenServeConfig(session, true);
+    endpoints.push(...nested.endpoints);
+    tcpForwards.push(...nested.tcpForwards);
+  }
+  return { endpoints, tcpForwards };
 }
 
 export interface CliProviderOptions {
@@ -504,10 +580,29 @@ export class CliProvider implements TailscaleProvider {
     return { urls: [...new Set(urls)], public: isPublic, raw };
   }
 
-  async serveStatus(): Promise<string> {
-    const result = await this.run(["serve", "status"]);
-    if (result.status !== 0) throw this.failFromCli(result, "serve status");
-    return result.stdout.trim();
+  async serveStatus(): Promise<ServeStatus> {
+    const result = await this.run(["serve", "status", "--json"]);
+    if (result.status !== 0) {
+      // CLIs predating `serve status --json` reject the flag; fall back to text.
+      if (/flag provided but not defined/i.test(result.stderr)) {
+        const text = await this.run(["serve", "status"]);
+        if (text.status !== 0) throw this.failFromCli(text, "serve status");
+        return { endpoints: [], tcpForwards: [], parsed: false, raw: text.stdout.trim() };
+      }
+      throw this.failFromCli(result, "serve status");
+    }
+    const raw = result.stdout.trim();
+    let config: RawServeConfig;
+    try {
+      config = raw === "" ? {} : (JSON.parse(raw) as RawServeConfig);
+    } catch {
+      throw new TailscaleError(
+        "CLI_ERROR",
+        "tailscale serve status --json returned unparseable output.",
+        "Run `tailscale serve status --json` manually and check the output.",
+      );
+    }
+    return { ...flattenServeConfig(config), parsed: true, raw };
   }
 
   async serveReset(port?: number, path?: string): Promise<string> {

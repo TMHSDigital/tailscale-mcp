@@ -94,13 +94,68 @@ describe("share_port", () => {
 
 describe("share_status / stop_share", () => {
   it("reports no active sessions for an empty serve config", async () => {
+    // `{}` is what tailscale 1.102.3 prints for an empty config.
+    const client = await connectedClient(
+      new CliProvider({ runner: mockRunner({ "serve status --json": okResult("{}\n") }) }),
+    );
+    const data = payload(await client.callTool({ name: "share_status", arguments: {} }));
+    expect(data).toEqual({ active: false, publicExposure: false, endpoints: [] });
+  });
+
+  it("lists endpoints with per-endpoint public flags and foreground sessions", async () => {
     const client = await connectedClient(
       new CliProvider({
-        runner: mockRunner({ "serve status": okResult("No serve config\n") }),
+        runner: mockRunner({ "serve status --json": okResult(fixture("serve-status.json")) }),
       }),
     );
     const data = payload(await client.callTool({ name: "share_status", arguments: {} }));
-    expect(data.active).toBe(false);
+    expect(data.active).toBe(true);
+    expect(data.publicExposure).toBe(true);
+    const byUrl = Object.fromEntries(data.endpoints.map((e: any) => [e.url, e]));
+    expect(Object.keys(byUrl).sort()).toEqual([
+      "https://devpc.tail1234.ts.net/",
+      "https://devpc.tail1234.ts.net/api",
+      "https://devpc.tail1234.ts.net:10000/",
+      "https://devpc.tail1234.ts.net:8443/docs",
+    ]);
+    expect(byUrl["https://devpc.tail1234.ts.net/api"]).toMatchObject({
+      httpsPort: 443,
+      path: "/api",
+      target: "http://127.0.0.1:4000",
+      targetType: "proxy",
+      public: true,
+      foreground: false,
+    });
+    expect(byUrl["https://devpc.tail1234.ts.net:8443/docs"]).toMatchObject({
+      targetType: "path",
+      public: false,
+    });
+    expect(byUrl["https://devpc.tail1234.ts.net:10000/"]).toMatchObject({
+      targetType: "text",
+      foreground: true,
+    });
+    expect(data.tcpForwards).toEqual([
+      { port: 5432, target: "127.0.0.1:5432", public: false, foreground: false },
+    ]);
+  });
+
+  it("falls back to text status on CLIs without serve status --json", async () => {
+    const client = await connectedClient(
+      new CliProvider({
+        runner: mockRunner({
+          "serve status --json": {
+            status: 2,
+            stdout: "",
+            stderr: "flag provided but not defined: -json\n",
+          },
+          "serve status": okResult("https://devpc.tail1234.ts.net (tailnet only)\n|-- / proxy http://127.0.0.1:3000\n"),
+        }),
+      }),
+    );
+    const data = payload(await client.callTool({ name: "share_status", arguments: {} }));
+    expect(data.active).toBe(true);
+    expect(data.publicExposure).toBeNull();
+    expect(data.status).toContain("proxy http://127.0.0.1:3000");
   });
 
   it("stop_share without port resets everything", async () => {

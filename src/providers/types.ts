@@ -102,11 +102,47 @@ export interface ServeResult {
   raw: string;
 }
 
+/** One HTTP(S) mount in the serve config. */
+export interface ServeEndpoint {
+  url: string;
+  /** The SNI name the endpoint is served under (this node's MagicDNS name). */
+  host: string;
+  /** The serve port (443 unless set with --https / --http). */
+  httpsPort: number;
+  scheme: "https" | "http";
+  /** Mount path, e.g. "/" or "/api". */
+  path: string;
+  /** What the mount serves: proxy URL, file path, text, or redirect target. */
+  target: string | null;
+  targetType: "proxy" | "path" | "text" | "redirect" | "unknown";
+  /** True when Funnel exposes this endpoint to the public internet. */
+  public: boolean;
+  /** True for a foreground `tailscale serve` session (not --bg). */
+  foreground: boolean;
+}
+
+/** A raw TCP forward (`tailscale serve --tcp`). */
+export interface TcpForward {
+  port: number;
+  target: string;
+  public: boolean;
+  foreground: boolean;
+}
+
+export interface ServeStatus {
+  endpoints: ServeEndpoint[];
+  tcpForwards: TcpForward[];
+  /** False when only the text form of `serve status` was available. */
+  parsed: boolean;
+  /** Raw CLI output, for diagnostics. */
+  raw: string;
+}
+
 export interface TailscaleProvider {
   status(): Promise<TailnetStatus>;
   ping(target: string, opts?: PingOptions): Promise<PingResult>;
   serve(opts: ServeOptions): Promise<ServeResult>;
-  serveStatus(): Promise<string>;
+  serveStatus(): Promise<ServeStatus>;
   /**
    * With no arguments, clear the entire serve config. Otherwise turn off the
    * mount at `path` (default "/") on HTTPS port `port` (default 443).

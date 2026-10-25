@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./index.js";
 import { fail, ok } from "./helpers.js";
-import { DEFAULT_HTTPS_PORT } from "../providers/types.js";
+import { DEFAULT_HTTPS_PORT, type ServeStatus } from "../providers/types.js";
 
 /**
  * An HTTPS mount path: leading slash, URL-safe segment characters only.
@@ -19,6 +19,26 @@ export const mountPath = z
     message: 'Path must not contain "." or ".." segments',
   })
   .transform((p) => (p.length > 1 ? p.replace(/\/+$/, "") || "/" : p));
+
+/** The share_status payload, also used for stop_share's before/after state. */
+export function summarizeServeStatus(status: ServeStatus) {
+  if (!status.parsed) {
+    // Old CLI without `serve status --json`: only the text form is available.
+    return {
+      active: status.raw !== "" && !/^No serve config/i.test(status.raw),
+      publicExposure: null,
+      endpoints: [],
+      status: status.raw || "No serve config",
+    };
+  }
+  return {
+    active: status.endpoints.length + status.tcpForwards.length > 0,
+    publicExposure:
+      status.endpoints.some((e) => e.public) || status.tcpForwards.some((t) => t.public),
+    endpoints: status.endpoints,
+    ...(status.tcpForwards.length > 0 && { tcpForwards: status.tcpForwards }),
+  };
+}
 
 export function register(server: McpServer, ctx: ToolContext): void {
   server.tool(
@@ -58,15 +78,14 @@ export function register(server: McpServer, ctx: ToolContext): void {
 
   server.tool(
     "share_status",
-    "Report the active Tailscale Serve/Funnel sessions on this node.",
+    "Report the active Tailscale Serve/Funnel sessions on this node: one entry per " +
+      "endpoint with its URL, serve port, mount path, proxied target, and a public flag " +
+      "that is true when Funnel exposes it to the open internet. publicExposure is " +
+      "true when anything is public.",
     {},
     async () => {
       try {
-        const raw = await ctx.provider.serveStatus();
-        return ok({
-          active: raw !== "" && !/^No serve config/i.test(raw),
-          status: raw || "No serve config",
-        });
+        return ok(summarizeServeStatus(await ctx.provider.serveStatus()));
       } catch (err) {
         return fail(err);
       }
