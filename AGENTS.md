@@ -67,7 +67,7 @@ Keeps repository labels in sync.
 
 - No hardcoded credentials -- CI scans for password/token/api_key patterns.
 - Conventional commits; bump the version deliberately in your PR (CI tags and publishes it).
-- Keep `mcp-tools.json` in sync with the tools registered in `src/tools/`.
+- `mcp-tools.json` is generated from the tools registered in `src/tools/`: run `npm run gen:tools` after changing a tool (CI fails if it is stale).
 
 ## Adding content
 
@@ -80,7 +80,7 @@ Keeps repository labels in sync.
 ### New tool
 
 1. Register the tool in `src/tools/`
-2. Add it to `mcp-tools.json`
+2. Regenerate `mcp-tools.json` with `npm run gen:tools`
 3. Add vitest tests
 4. Use `feat:` commit prefix
 

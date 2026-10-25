@@ -29,7 +29,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 ### Tools
 
 - Register the tool in `src/tools/`
-- Add it to `mcp-tools.json`
+- Regenerate `mcp-tools.json` with `npm run gen:tools` (never edit it by hand; CI fails if it is stale)
 - Add vitest tests
 
 Bump the version in `package.json` in your PR (e.g. `npm version <patch|minor|major> --no-git-tag-version`); CI tags and publishes it on merge.

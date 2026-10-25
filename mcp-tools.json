@@ -1,7 +1,7 @@
 [
   {
     "name": "tailnet_status",
-    "description": "Report the state of the local tailnet: this node plus all peers with hostname, MagicDNS name, Tailscale IPv4/IPv6, OS, online flag, last seen, exit-node flags, and tags.",
+    "description": "Report the state of the local tailnet: this node plus all peers with hostname, MagicDNS name, Tailscale IPv4/IPv6, OS, online flag, last seen, exit-node flags, and tags. Returns a structured error with the exact fix command when the tailscale binary is missing, the daemon is stopped, or the device needs login.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -10,12 +10,16 @@
           "description": "Only include peers that are currently online (default: false)"
         }
       },
-      "required": []
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
     }
   },
   {
     "name": "generate_ssh_config",
-    "description": "Generate ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). Dry-run by default; write=true writes ~/.ssh/tailscale_dev_config; target=\"user_ssh_config\" edits ~/.ssh/config idempotently between managed markers.",
+    "description": "Generate ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). Dry-run by default: returns the generated config text only and writes nothing. With write=true it writes a dedicated file (~/.ssh/tailscale_dev_config) and returns instructions for adding an Include line to ~/.ssh/config (never applied automatically). Direct editing of ~/.ssh/config itself additionally requires target=\"user_ssh_config\" and is idempotent between managed markers, never touching content outside them.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -25,8 +29,11 @@
         },
         "target": {
           "type": "string",
-          "enum": ["dedicated_file", "user_ssh_config"],
-          "description": "Write target: dedicated_file (default) or user_ssh_config (managed markers)"
+          "enum": [
+            "dedicated_file",
+            "user_ssh_config"
+          ],
+          "description": "Write target: \"dedicated_file\" (default, ~/.ssh/tailscale_dev_config) or \"user_ssh_config\" (edit ~/.ssh/config between managed markers)"
         },
         "onlineOnly": {
           "type": "boolean",
@@ -41,50 +48,118 @@
           "description": "Remote user to set on every Host block"
         }
       },
-      "required": []
-    }
-  },
-  {
-    "name": "share_port",
-    "description": "Share a local port over the tailnet via Tailscale Serve (tailnet-only by default). WARNING: public=true switches to Funnel and exposes the port to the OPEN INTERNET. Returns the resulting URL(s).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "port": {"type": "number", "description": "Local port to share"},
-        "public": {"type": "boolean", "description": "Expose to the open internet via Funnel (default: false = tailnet-only Serve). DANGEROUS."},
-        "path": {"type": "string", "pattern": "^\\/[A-Za-z0-9._~\\-/]*$", "description": "HTTPS mount path on the serve endpoint, e.g. \"/api\" (default: \"/\")"}
-      },
-      "required": ["port"]
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
     }
   },
   {
     "name": "share_status",
-    "description": "Report the active Tailscale Serve/Funnel sessions on this node.",
-    "inputSchema": {"type": "object", "properties": {}, "required": []}
+    "description": "Report the active Tailscale Serve/Funnel sessions on this node: one entry per endpoint with its URL, serve port, mount path, proxied target, and a public flag that is true when Funnel exposes it to the open internet. publicExposure is true when anything is public.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
   },
   {
-    "name": "stop_share",
-    "description": "Stop sharing. Without arguments clears the entire serve/funnel configuration; with httpsPort and/or path it turns off just that mount.",
+    "name": "share_port",
+    "description": "Share a local port over the tailnet via Tailscale Serve (tailnet-only by default). WARNING: setting public=true switches to Funnel and exposes the port to the OPEN INTERNET — anyone with the URL can reach it. Only set public=true when internet exposure is explicitly intended. Funnel is DISABLED on this server: public=true returns FUNNEL_DISABLED unless the user sets TAILSCALE_MCP_ALLOW_FUNNEL=1. Returns the resulting URL(s).",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "httpsPort": {"type": "number", "description": "HTTPS serve port to turn off (as shown in share_status; default 443 when path is given). Omit both httpsPort and path to clear everything."},
-        "path": {"type": "string", "pattern": "^\\/[A-Za-z0-9._~\\-/]*$", "description": "Mount path to turn off, as passed to share_port (default: \"/\")"}
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Local port to share"
+        },
+        "public": {
+          "type": "boolean",
+          "description": "Expose to the open internet via Funnel (default: false = tailnet-only Serve). DANGEROUS: public=true makes the port reachable by anyone on the internet. Disabled unless TAILSCALE_MCP_ALLOW_FUNNEL=1."
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\/[A-Za-z0-9._~\\-/]*$",
+          "description": "HTTPS mount path on the serve endpoint, e.g. \"/api\" (default: \"/\")"
+        }
       },
-      "required": []
+      "required": [
+        "port"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "stop_share",
+    "description": "Stop sharing. Name exactly one target: httpsPort and/or path turns off that one mount (httpsPort is the serve port shown in share_status, typically 443, not the proxied local port; path is the mount path given to share_port, default \"/\"); mine=true stops only the shares this server created in this session; all=true clears the entire serve/funnel configuration, including shares set up outside this server. With no arguments nothing is stopped and the active endpoints are listed. Returns what was removed and what remains.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "httpsPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "HTTPS serve port of the mount to turn off (default 443 when path is given)"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\/[A-Za-z0-9._~\\-/]*$",
+          "description": "Mount path to turn off, as passed to share_port (default: \"/\")"
+        },
+        "mine": {
+          "type": "boolean",
+          "description": "Stop only the shares created by share_port in this session"
+        },
+        "all": {
+          "type": "boolean",
+          "description": "Clear the ENTIRE serve/funnel config, including shares not created by this server"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
     }
   },
   {
     "name": "ping_all",
-    "description": "Ping tailnet peers concurrently (bounded to 5, one ping each with timeout) and return a latency matrix: node, latency ms, path (direct vs DERP relay), or unreachable.",
+    "description": "Ping tailnet peers concurrently (bounded to 5 at a time, with a per-ping timeout) and return a latency matrix: node, latency ms of the settled path, path (direct, DERP relay, or peer relay), or unreachable. Defaults to online peers only. The whole call is capped at 45s; peers not answered by then are reported with an error and timedOut is true.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "count": {"type": "number", "description": "Ping attempts per peer (default: 1)"},
-        "timeoutMs": {"type": "number", "description": "Per-ping timeout in milliseconds (default: 5000)"},
-        "onlineOnly": {"type": "boolean", "description": "Only ping peers reported online (default: true)"}
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Ping attempts per peer (default: 1)"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "description": "Per-ping timeout in milliseconds (default: 5000)"
+        },
+        "onlineOnly": {
+          "type": "boolean",
+          "description": "Only ping peers reported online (default: true)"
+        }
       },
-      "required": []
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
     }
   }
 ]
