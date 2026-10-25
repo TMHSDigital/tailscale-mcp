@@ -2,7 +2,7 @@
 
 # Roadmap
 
-**Current:** v0.3.0 (published to npm)
+**Current:** v0.4.0 (published to npm and the MCP Registry)
 
 Direction: stay the *safe, structured window into Tailscale* — dry-run defaults, explicit opt-in for anything dangerous, structured errors with remedies. Every new tool is judged against that bar before it ships.
 
@@ -67,10 +67,10 @@ A new trust boundary: the Admin API needs OAuth client credentials. Everything h
 ## v1.0.0 — Stable + distribution
 
 - [ ] **Cross-platform CI** — Windows + macOS runners exercising the named-pipe / unix-socket / sameuserproof provider paths.
-- [ ] **Integration-test harness** — fixture capture tooling against a real tailnet with a sanitizer, so contributors can regenerate fixtures without leaking their tailnet.
+- [ ] **Integration-test harness** — *partly shipped in 0.4.0:* weekly contract tests against the real CLI on three OSes (`contract.yml`). Remaining: fixture capture tooling against a real tailnet with a sanitizer, so contributors can regenerate fixtures without leaking their tailnet.
 - [ ] **Docs site completeness** — per-tool reference (generated from `mcp-tools.json`), security model page (trust boundaries, env flags, what the server will never do), provider architecture page.
 - [ ] **Stability policy** — semver commitment; tool schemas are API: breaking schema changes only in majors, documented deprecation window.
-- [ ] **Distribution beyond npm** — signed Docker image with SBOM (Docker MCP Catalog requirement), Smithery listing (requires Streamable HTTP — see deferred), mcp.so, standalone binaries (Windows/macOS/Linux), one-click configs for Claude Desktop / Claude Code / Cursor. Each channel gated on a license-compatibility check first (CC-BY-NC-ND).
+- [ ] **Distribution beyond npm** — *shipped early in 0.4.0:* official MCP Registry listing, Claude Desktop `.mcpb` on every release, one-click Cursor/VS Code links, and the Claude Code command. Remaining: signed Docker image with SBOM (Docker MCP Catalog requirement), Smithery listing (requires Streamable HTTP — see deferred), mcp.so, standalone binaries (Windows/macOS/Linux). Each channel gated on a license-compatibility check first (CC-BY-NC-ND).
 
 ## v1.x — Post-1.0 horizon (exploratory)
 

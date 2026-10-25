@@ -4,6 +4,16 @@ All notable changes to Tailscale MCP will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0] - 2026-10-25
+
+### Added
+
+- Listed in the official MCP Registry as `io.github.TMHSDigital/tailscale-mcp` (`server.json`, `mcpName`). `publish.yml` publishes each release there with GitHub OIDC, after npm (#48)
+- One-click Claude Desktop extension: each GitHub Release has `tailscale-mcp.mcpb`, with install-time switches for read-only mode and Funnel (#48)
+- One-click install links for Cursor and VS Code, and the Claude Code command, in the README and on the homepage (#48)
+- `npm run test:packed`: packs the npm tarball, installs it into a clean project, and checks it over stdio. It runs in CI on every OS and gates `npm publish` (#56)
+- `npm run test:contract` and a weekly `contract.yml` run against the latest real tailscale CLI on Linux, macOS, and Windows. Drift opens a `cli-drift` issue; an optional job runs on an ephemeral CI-tailnet node (#47)
+
 ## [0.3.0] - 2026-10-25
 
 ### Breaking
