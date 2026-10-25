@@ -40,3 +40,13 @@ export function enoent(): NodeJS.ErrnoException {
 export function okResult(stdout: string): CliResult {
   return { status: 0, stdout, stderr: "" };
 }
+
+/**
+ * Parse the JSON text block of a tool result. Takes `unknown` because the
+ * SDK's callTool return type is a union that includes the legacy
+ * `{ toolResult }` shape, which has no `content`.
+ */
+export function payload(result: unknown): Record<string, any> {
+  const content = (result as { content: Array<{ text: string }> }).content;
+  return JSON.parse(content[0].text);
+}

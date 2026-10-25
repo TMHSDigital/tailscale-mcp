@@ -2,7 +2,7 @@
 import { readFileSync } from "fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CliProvider } from "./providers/cli.js";
+import { BIN_ENV_VAR, CliProvider } from "./providers/cli.js";
 import { registerAll } from "./tools/index.js";
 
 function readVersion(): string {
@@ -18,7 +18,8 @@ function readVersion(): string {
 
 async function main(): Promise<void> {
   const server = new McpServer({ name: "tailscale-mcp", version: readVersion() });
-  registerAll(server, { provider: new CliProvider() });
+  const bin = process.env[BIN_ENV_VAR]?.trim() || undefined;
+  registerAll(server, { provider: new CliProvider({ bin }) });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -4,6 +4,28 @@ All notable changes to Tailscale MCP will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.4] - 2026-10-25
+
+### Fixed
+
+- `generate_ssh_config` no longer deletes user content when the managed markers in `~/.ssh/config` are orphaned, reversed, or duplicated. It returns `SSH_CONFIG_MARKERS_CORRUPT` and writes nothing (#31)
+- `Host` aliases are the MagicDNS label (sanitized hostname fallback): always one SSH-safe token, with collisions suffixed and reported under `renamed`. Mullvad exit nodes and sharee nodes are skipped and reported under `skipped` (#32)
+- ssh-config writes are atomic, keep a `config.tailscale-mcp.bak` backup, create files `0600`, keep existing modes, write through symlinks, and refuse to overwrite a config that can't be read (`SSH_CONFIG_UNREADABLE`) (#42)
+- The macOS app-bundle CLI and Homebrew prefixes are found when `tailscale` is not on `PATH` (#53)
+- Access denied from Serve/Funnel maps to `PERMISSION_DENIED` with the Linux operator remedy (#54)
+- `stop_share` can remove a share mounted at a path, and mount paths are validated (#55)
+- Test files are typechecked, and CI runs `npm run typecheck` (#35)
+
+### Added
+
+- `TAILSCALE_MCP_BIN` env var to point the server at a specific `tailscale` binary
+- `generate_ssh_config` `includeShared` input, and `stop_share` `path` input
+- `sharee` flag on nodes in `tailnet_status`
+
+### Changed
+
+- `stop_share` with `httpsPort`/`path` reports `stopped` as `{httpsPort, path}` instead of the bare port number
+
 ## [0.1.3] - 2026-10-25
 
 ### Changed

@@ -33,6 +33,30 @@ Add to your MCP client configuration (Claude Desktop, Cursor, etc.):
 
 Requires Node 20+ and an installed, logged-in Tailscale client.
 
+### Finding the tailscale CLI
+
+The server looks for `tailscale` on `PATH`, then in the platform's default install locations: `C:\Program Files\Tailscale\tailscale.exe` on Windows, and `/Applications/Tailscale.app/Contents/MacOS/Tailscale`, `/opt/homebrew/bin/tailscale`, and `/usr/local/bin/tailscale` on macOS. Mac App Store installs therefore work without extra setup. To use a different binary, set `TAILSCALE_MCP_BIN`:
+
+```json
+{
+  "mcpServers": {
+    "tailscale": {
+      "command": "npx",
+      "args": ["-y", "@tmhs/tailscale-mcp"],
+      "env": { "TAILSCALE_MCP_BIN": "/path/to/tailscale" }
+    }
+  }
+}
+```
+
+### Linux: Serve/Funnel permissions
+
+On Linux only root or the configured operator can change Serve/Funnel settings. If `share_port` or `stop_share` returns `PERMISSION_DENIED`, allow your user once:
+
+```bash
+sudo tailscale set --operator=$USER
+```
+
 ## Tools
 
 ### tailnet_status
@@ -54,10 +78,12 @@ Trimmed view of `tailscale status --json`: self node plus peers with hostname, M
 
 ### generate_ssh_config
 
-Emits ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). **Dry-run by default**: returns the generated text only. Inputs: `write`, `target`, `onlineOnly`, `user`.
+Emits ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). **Dry-run by default**: returns the generated text only. Inputs: `write`, `target`, `onlineOnly`, `includeShared`, `user`.
 
+- Each `Host` alias is the node's first MagicDNS label (`raspi.tail1234.ts.net` → `raspi`), falling back to a sanitized OS hostname (`[a-z0-9-]` only). Colliding aliases get a numeric suffix and are listed under `renamed`. Mullvad exit nodes, and nodes of users you share with (unless `includeShared: true`), are left out and listed under `skipped`.
 - `write: true` writes the dedicated file `~/.ssh/tailscale_dev_config` and returns the `Include tailscale_dev_config` instruction for `~/.ssh/config` (never applied automatically).
-- `target: "user_ssh_config"` (with `write: true`) edits `~/.ssh/config` directly, idempotently, between `# BEGIN tailscale-mcp` and `# END tailscale-mcp` markers. Content outside the markers is never touched.
+- `target: "user_ssh_config"` (with `write: true`) edits `~/.ssh/config` directly, idempotently, between `# BEGIN tailscale-mcp` and `# END tailscale-mcp` markers. Content outside the markers is never touched. If the markers are malformed (orphaned, reversed, or duplicated) the tool returns `SSH_CONFIG_MARKERS_CORRUPT` and writes nothing.
+- Writes are atomic (temp file + rename), the previous `~/.ssh/config` is kept as `config.tailscale-mcp.bak`, new files are created `0600` (existing modes are kept), and a symlinked config is written through rather than replaced.
 
 ```json
 {
@@ -83,7 +109,9 @@ Reports active Serve/Funnel sessions: `{"active": false, "status": "No serve con
 
 ### stop_share
 
-Without arguments clears the entire serve/funnel configuration. With `httpsPort` it turns off one HTTPS endpoint (the serve port shown in `share_status`, typically 443, not the proxied local port).
+Without arguments clears the entire serve/funnel configuration. With `httpsPort` and/or `path` it turns off one mount: `httpsPort` is the serve port shown in `share_status` (default 443, not the proxied local port), and `path` is the mount path given to `share_port` (default `/`). For example, `{"path": "/api"}` undoes `share_port {"port": 3000, "path": "/api"}`.
+
+Mount paths must start with `/` and use only letters, digits, and `. _ ~ - /`, with no `.` or `..` segments. A trailing slash is dropped.
 
 ### ping_all
 

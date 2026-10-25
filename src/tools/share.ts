@@ -2,6 +2,23 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./index.js";
 import { fail, ok } from "./helpers.js";
+import { DEFAULT_HTTPS_PORT } from "../providers/types.js";
+
+/**
+ * An HTTPS mount path: leading slash, URL-safe segment characters only.
+ * Trailing slashes are dropped ("/api/" -> "/api") so share_port and
+ * stop_share name the same mount.
+ */
+export const mountPath = z
+  .string()
+  .regex(
+    /^\/[A-Za-z0-9._~\-/]*$/,
+    'Path must start with "/" and contain only letters, digits, and . _ ~ - /',
+  )
+  .refine((p) => !p.split("/").some((seg) => seg === "." || seg === ".."), {
+    message: 'Path must not contain "." or ".." segments',
+  })
+  .transform((p) => (p.length > 1 ? p.replace(/\/+$/, "") || "/" : p));
 
 export function register(server: McpServer, ctx: ToolContext): void {
   server.tool(
@@ -20,10 +37,9 @@ export function register(server: McpServer, ctx: ToolContext): void {
           "Expose to the open internet via Funnel (default: false = tailnet-only Serve). " +
             "DANGEROUS: public=true makes the port reachable by anyone on the internet.",
         ),
-      path: z
-        .string()
+      path: mountPath
         .optional()
-        .describe('HTTPS mount path on the serve endpoint (default: "/")'),
+        .describe('HTTPS mount path on the serve endpoint, e.g. "/api" (default: "/")'),
     },
     async ({ port, public: isPublic, path }) => {
       try {
@@ -60,8 +76,9 @@ export function register(server: McpServer, ctx: ToolContext): void {
   server.tool(
     "stop_share",
     "Stop sharing. Without arguments clears the entire serve/funnel configuration; " +
-      "with httpsPort it turns off just that HTTPS serve endpoint (the port shown in " +
-      "share_status, typically 443 — not the local port that was proxied).",
+      "with httpsPort and/or path it turns off just that mount (httpsPort is the port " +
+      "shown in share_status, typically 443 — not the local port that was proxied; " +
+      "path is the mount path given to share_port, default \"/\").",
     {
       httpsPort: z
         .number()
@@ -70,13 +87,21 @@ export function register(server: McpServer, ctx: ToolContext): void {
         .max(65535)
         .optional()
         .describe(
-          "HTTPS serve port to turn off (as shown in share_status). Omit to clear everything.",
+          "HTTPS serve port to turn off (as shown in share_status; default 443 when path " +
+            "is given). Omit both httpsPort and path to clear everything.",
         ),
+      path: mountPath
+        .optional()
+        .describe('Mount path to turn off, as passed to share_port (default: "/")'),
     },
-    async ({ httpsPort }) => {
+    async ({ httpsPort, path }) => {
       try {
-        const message = await ctx.provider.serveReset(httpsPort);
-        return ok({ stopped: httpsPort ?? "all", message });
+        const message = await ctx.provider.serveReset(httpsPort, path);
+        const stopped =
+          httpsPort === undefined && path === undefined
+            ? "all"
+            : { httpsPort: httpsPort ?? DEFAULT_HTTPS_PORT, path: path ?? "/" };
+        return ok({ stopped, message });
       } catch (err) {
         return fail(err);
       }

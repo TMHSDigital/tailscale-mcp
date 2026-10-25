@@ -27,6 +27,11 @@ export interface TailscaleNode {
   /** True when the node offers itself as an exit node. */
   exitNodeOption: boolean;
   tags: string[];
+  /**
+   * True when the node is in the netmap only because it belongs to a user
+   * this node is shared with (it may connect to us, but is not ours).
+   */
+  sharee: boolean;
 }
 
 export interface TailnetStatus {
@@ -64,6 +69,9 @@ export interface PingResult {
   raw: string;
 }
 
+/** The HTTPS port Serve/Funnel use when none is given. */
+export const DEFAULT_HTTPS_PORT = 443;
+
 export interface ServeOptions {
   /** Local port to share. */
   port: number;
@@ -85,7 +93,11 @@ export interface TailscaleProvider {
   ping(target: string, opts?: PingOptions): Promise<PingResult>;
   serve(opts: ServeOptions): Promise<ServeResult>;
   serveStatus(): Promise<string>;
-  serveReset(port?: number): Promise<string>;
+  /**
+   * With no arguments, clear the entire serve config. Otherwise turn off the
+   * mount at `path` (default "/") on HTTPS port `port` (default 443).
+   */
+  serveReset(port?: number, path?: string): Promise<string>;
   version(): Promise<TailscaleVersion>;
 }
 
@@ -98,6 +110,9 @@ export type TailscaleErrorCode =
   | "DAEMON_NOT_RUNNING"
   | "NEEDS_LOGIN"
   | "SERVE_NOT_ENABLED"
+  | "PERMISSION_DENIED"
+  | "SSH_CONFIG_MARKERS_CORRUPT"
+  | "SSH_CONFIG_UNREADABLE"
   | "CLI_ERROR";
 
 /**
