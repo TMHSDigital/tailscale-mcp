@@ -37,8 +37,8 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Authenticates via npm trusted publishing (OIDC, id-token: write above);
+      # no NPM_TOKEN secret. Provenance is attached automatically.
       - name: Publish to npm
         if: steps.pub.outputs.skip == 'false'
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
