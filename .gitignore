@@ -7,3 +7,8 @@ Thumbs.db
 *.log
 _harness.mjs
 CLAUDE.md
+
+# Copied in by pages.yml at deploy time
+docs/mcp-tools.json
+# Browser automation scratch output
+.playwright-mcp/

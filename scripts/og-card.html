@@ -1,0 +1,45 @@
+<!-- Source for docs/og.png, the 1200x630 social preview card.
+     To regenerate: serve this directory, open this file in a browser with a
+     1200x630 viewport, wait for fonts to load, and screenshot it to docs/og.png. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>og</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; overflow: hidden; }
+  body { width: 1200px; height: 630px; background: #edf1f4; color: #16222d; font-family: "IBM Plex Sans", sans-serif; display: grid; grid-template-columns: 560px 1fr; align-items: center; padding: 0 64px; box-sizing: border-box; gap: 24px; }
+  h1 { font: 700 64px/1.02 "Bricolage Grotesque", sans-serif; font-variation-settings: "opsz" 96; letter-spacing: -0.02em; margin: 0 0 24px; }
+  p { font-size: 24px; color: #4a5866; margin: 0; }
+  .brand { font: 700 26px "Bricolage Grotesque", sans-serif; margin: 0 0 28px; display: flex; gap: 12px; align-items: center; }
+  svg text { paint-order: stroke; stroke: #edf1f4; stroke-width: 6px; stroke-linejoin: round; }
+  .name { font: 600 19px "IBM Plex Sans"; fill: #16222d; }
+  .detail { font: 400 15px "IBM Plex Sans"; fill: #4a5866; }
+  .lat { font: 600 17px "IBM Plex Sans"; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="brand"><svg width="32" height="32" viewBox="0 0 32 32"><g fill="none" stroke="#16222d" stroke-width="2.5"><path d="M9 16h14M16 9v14" stroke-linecap="round"/><circle cx="16" cy="16" r="4" fill="#16222d"/><circle cx="5" cy="16" r="3"/><circle cx="27" cy="16" r="3"/><circle cx="16" cy="5" r="3"/><circle cx="16" cy="27" r="3"/></g></svg>tailscale-mcp</div>
+    <h1>Let your AI agent see your tailnet, and change it only when you say so.</h1>
+    <p>An MCP server with dry runs, Funnel off by default, and no credentials.</p>
+  </div>
+  <svg viewBox="40 20 470 350" width="500">
+    <path d="M260 190 L 92 74" stroke="#1e8458" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M260 190 L 438 92" stroke="#b7800c" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 10" fill="none"/>
+    <path d="M260 190 L 430 290" stroke="#1e8458" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M260 190 L 96 302" stroke="#9aa7b2" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 8" fill="none"/>
+    <text class="lat" fill="#1e8458" x="186" y="114">3 ms direct</text>
+    <text class="lat" fill="#b7800c" x="356" y="164">41 ms via DERP</text>
+    <text class="lat" fill="#1e8458" x="350" y="222">9 ms direct</text>
+    <text class="lat" fill="#4a5866" x="168" y="234" text-anchor="end" style="font-weight:400">offline</text>
+    <circle cx="260" cy="190" r="18" fill="#16222d"/>
+    <text class="name" x="260" y="158" text-anchor="middle">devpc</text>
+    <circle cx="92" cy="74" r="12" fill="#f8fafb" stroke="#16222d" stroke-width="2.5"/><text class="name" x="70" y="46">raspi</text>
+    <circle cx="438" cy="92" r="12" fill="#f8fafb" stroke="#16222d" stroke-width="2.5"/><text class="name" x="404" y="62">exitbox</text>
+    <circle cx="430" cy="290" r="12" fill="#f8fafb" stroke="#16222d" stroke-width="2.5"/><text class="name" x="412" y="330">nas</text>
+    <circle cx="96" cy="302" r="12" fill="#f8fafb" stroke="#9aa7b2" stroke-width="2.5" stroke-dasharray="3 4"/><text class="name" x="74" y="342" style="fill:#4a5866">phone</text>
+  </svg>
+</body>
+</html>

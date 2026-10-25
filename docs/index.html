@@ -3,17 +3,415 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tailscale MCP</title>
+  <title>Tailscale MCP: let your AI agent use your tailnet, safely</title>
+  <meta name="description" content="An MCP server for the local Tailscale daemon. Your agent can list devices, write SSH config, share a dev server, and check latency, with dry runs, Funnel off by default, and no credentials touched.">
+  <link rel="canonical" href="https://tmhsdigital.github.io/tailscale-mcp/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Tailscale MCP">
+  <meta property="og:description" content="Let your AI agent see your tailnet, and change it only when you say so. Dry runs, Funnel off by default, no credentials.">
+  <meta property="og:url" content="https://tmhsdigital.github.io/tailscale-mcp/">
+  <meta property="og:image" content="https://tmhsdigital.github.io/tailscale-mcp/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="A tailnet drawn as a mesh: one direct link at 3 ms, one relayed link at 41 ms, one device offline.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Tailscale MCP">
+  <meta name="twitter:description" content="Let your AI agent see your tailnet, and change it only when you say so.">
+  <meta name="twitter:image" content="https://tmhsdigital.github.io/tailscale-mcp/og.png">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; }
-    h1 { color: #7c3aed; }
-    a { color: #a78bfa; }
+    :root {
+      --fog: #edf1f4;
+      --surface: #f8fafb;
+      --ink: #16222d;
+      --ink-soft: #4a5866;
+      --rule: #cfd8df;
+      --direct: #1e8458;
+      --relay: #b7800c;
+      --danger: #c23b2a;
+      --link: #5b2bd6;
+      --offline: #9aa7b2;
+      --code-bg: #e2e8ed;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --fog: #121821;
+        --surface: #18202b;
+        --ink: #e4e9ee;
+        --ink-soft: #a3afba;
+        --rule: #2c3846;
+        --direct: #3fbf86;
+        --relay: #e0a93a;
+        --danger: #f07a68;
+        --link: #a98bff;
+        --offline: #5d6b78;
+        --code-bg: #1f2935;
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --fog: #121821;
+      --surface: #18202b;
+      --ink: #e4e9ee;
+      --ink-soft: #a3afba;
+      --rule: #2c3846;
+      --direct: #3fbf86;
+      --relay: #e0a93a;
+      --danger: #f07a68;
+      --link: #a98bff;
+      --offline: #5d6b78;
+      --code-bg: #1f2935;
+      color-scheme: dark;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--fog);
+      color: var(--ink);
+      font: 400 1.0625rem/1.6 "IBM Plex Sans", system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+    }
+    a { color: var(--link); text-underline-offset: 0.18em; }
+    a:hover { text-decoration-thickness: 2px; }
+    :focus-visible { outline: 3px solid var(--link); outline-offset: 3px; border-radius: 2px; }
+    code, pre { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.9em; }
+    :not(pre) > code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+    @media (min-width: 720px) { .wrap { padding: 0 32px; } }
+
+    /* Header */
+    .site-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 0; }
+    .wordmark { font: 700 1.125rem/1 "Bricolage Grotesque", sans-serif; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 10px; }
+    .site-header nav { display: flex; gap: 20px; font-weight: 500; }
+
+    /* Hero */
+    .hero { display: grid; gap: 40px; padding: 32px 0 64px; align-items: center; }
+    @media (min-width: 900px) { .hero { grid-template-columns: 1.05fr 1fr; padding: 56px 0 88px; } }
+    h1 {
+      font: 700 clamp(2.25rem, 5.2vw, 3.75rem)/1.04 "Bricolage Grotesque", sans-serif;
+      font-variation-settings: "opsz" 96;
+      letter-spacing: -0.02em;
+      margin: 0 0 20px;
+      max-width: 15ch;
+    }
+    .lede { font-size: 1.1875rem; color: var(--ink-soft); max-width: 34em; margin: 0 0 28px; }
+    .command {
+      display: flex; align-items: stretch; max-width: 34em;
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;
+    }
+    .command code { flex: 1; padding: 14px 16px; background: none; overflow-wrap: break-word; }
+    .copy {
+      font: 500 0.9375rem/1 "IBM Plex Sans", sans-serif; color: var(--ink);
+      background: var(--code-bg); border: 0; border-left: 1px solid var(--rule); padding: 0 16px; cursor: pointer;
+    }
+    .copy:hover { color: var(--link); }
+    .hero-note { margin: 12px 0 0; font-size: 0.9375rem; color: var(--ink-soft); }
+
+    /* Mesh diagram */
+    .mesh { margin: 0; }
+    .mesh svg { width: 100%; height: auto; display: block; }
+    .mesh figcaption { font-size: 0.9375rem; color: var(--ink-soft); margin-top: 8px; }
+    .mesh .node circle { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+    .mesh .node.self circle { fill: var(--ink); }
+    .mesh .node.off circle { stroke: var(--offline); stroke-dasharray: 3 4; }
+    /* A halo in the background color keeps labels legible where links pass. */
+    .mesh text { paint-order: stroke; stroke: var(--fog); stroke-width: 5px; stroke-linejoin: round; }
+    .mesh .name { font: 600 16px "IBM Plex Sans", sans-serif; fill: var(--ink); }
+    .mesh .node.off .name { fill: var(--ink-soft); }
+    .mesh .detail { font: 400 13px "IBM Plex Sans", sans-serif; fill: var(--ink-soft); }
+    .mesh .link { fill: none; stroke-width: 4; stroke-linecap: round; }
+    .mesh .link.direct { stroke: var(--direct); }
+    .mesh .link.relay { stroke: var(--relay); stroke-dasharray: 2 9; }
+    .mesh .link.off { stroke: var(--offline); stroke-width: 2; stroke-dasharray: 1 7; }
+    .mesh .lat { font: 600 14px "IBM Plex Sans", sans-serif; font-variant-numeric: tabular-nums; }
+    .mesh .lat.direct { fill: var(--direct); }
+    .mesh .lat.relay { fill: var(--relay); }
+    .mesh .lat.off { fill: var(--ink-soft); font-weight: 400; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 0.9375rem; }
+    .legend li { display: inline-flex; align-items: center; gap: 8px; }
+    .legend svg { width: 28px; height: 6px; }
+
+    /* The page's one animation: links draw in, fastest reply first. */
+    @media (prefers-reduced-motion: no-preference) {
+      /* Solid links draw along their length; dashed ones fade in (a dash
+         pattern can't double as the draw-in mask). */
+      .mesh.animate .link.direct { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); animation: draw 700ms ease-out forwards; animation-delay: var(--delay); }
+      .mesh.animate .link.relay, .mesh.animate .link.off { opacity: 0; animation: appear 500ms ease-out forwards; animation-delay: var(--delay); }
+      .mesh.animate .lat { opacity: 0; animation: appear 300ms ease-out forwards; animation-delay: calc(var(--delay) + 500ms); }
+      @keyframes draw { to { stroke-dashoffset: 0; } }
+      @keyframes appear { to { opacity: 1; } }
+    }
+
+    /* Sections */
+    section { padding: 56px 0; border-top: 1px solid var(--rule); }
+    h2 { font: 700 clamp(1.625rem, 3vw, 2.125rem)/1.15 "Bricolage Grotesque", sans-serif; letter-spacing: -0.01em; margin: 0 0 12px; }
+    h3 { font: 600 1.0625rem/1.4 "IBM Plex Sans", sans-serif; margin: 0 0 6px; }
+    .section-intro { color: var(--ink-soft); max-width: 40em; margin: 0 0 32px; }
+
+    /* Install */
+    .clients { display: grid; gap: 28px; }
+    /* Grid items default to min-width: auto, which lets long code lines widen
+       the column past the viewport; let the <pre> scroll instead. */
+    .clients > *, .hero > * { min-width: 0; }
+    @media (min-width: 900px) { .clients { grid-template-columns: 1fr 1fr; gap: 32px 40px; } }
+    .client p { margin: 0 0 10px; color: var(--ink-soft); font-size: 0.9375rem; }
+    pre {
+      margin: 0; padding: 14px 16px; overflow-x: auto; line-height: 1.5;
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+    }
+    .requirements { margin: 32px 0 0; color: var(--ink-soft); max-width: 44em; }
+
+    /* Tools */
+    .tools-table { width: 100%; border-collapse: collapse; font-size: 0.9875rem; }
+    .tools-table th { text-align: left; font-weight: 600; padding: 10px 16px 10px 0; border-bottom: 2px solid var(--ink); }
+    .tools-table td { padding: 14px 16px 14px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    .tools-table td:first-child { white-space: nowrap; }
+    .tools-table .title { font-weight: 600; display: block; }
+    .tools-table .name { font-size: 0.875rem; color: var(--ink-soft); }
+    .tools-table td:last-child { white-space: nowrap; }
+    .effect { display: inline-flex; align-items: center; gap: 8px; }
+    .effect::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--direct); flex: none; }
+    .effect.changes::before { background: var(--relay); }
+    .effect.destructive::before { background: var(--danger); }
+    @media (max-width: 719px) {
+      .tools-table thead { display: none; }
+      .tools-table tr { display: block; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+      .tools-table td { display: block; border: 0; padding: 2px 0; white-space: normal; }
+      .tools-table td:first-child, .tools-table td:last-child { white-space: normal; }
+    }
+    .tools-status { color: var(--ink-soft); }
+
+    /* Safety */
+    .guarantees { display: grid; gap: 28px 48px; margin: 0; }
+    @media (min-width: 760px) { .guarantees { grid-template-columns: 1fr 1fr; } }
+    .guarantees div { max-width: 34em; }
+    .guarantees dt { font: 600 1.125rem/1.35 "Bricolage Grotesque", sans-serif; margin-bottom: 4px; }
+    .guarantees dd { margin: 0; color: var(--ink-soft); }
+    .guarantees .danger dt { color: var(--danger); }
+
+    /* Footer */
+    .site-footer { border-top: 1px solid var(--rule); padding: 32px 0 48px; color: var(--ink-soft); font-size: 0.9375rem; }
+    .site-footer p { margin: 0 0 8px; max-width: 60em; }
   </style>
 </head>
 <body>
-  <h1>Tailscale MCP</h1>
-  <p>MCP server for safe programmatic access to the local Tailscale daemon: tailnet discovery, SSH config generation, port sharing via Serve/Funnel, and latency matrices.</p>
-  <p>Full documentation will be available here once the server implementation is complete.</p>
-  <p><a href="https://github.com/TMHSDigital/tailscale-mcp">View on GitHub</a></p>
+  <div class="wrap">
+    <header class="site-header">
+      <a class="wordmark" href="./" aria-label="Tailscale MCP home">
+        <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 16h14M16 9v14" stroke-linecap="round"/><circle cx="16" cy="16" r="4" fill="currentColor"/><circle cx="5" cy="16" r="3"/><circle cx="27" cy="16" r="3"/><circle cx="16" cy="5" r="3"/><circle cx="16" cy="27" r="3"/></g></svg>
+        tailscale-mcp
+      </a>
+      <nav aria-label="Project links">
+        <a href="https://github.com/TMHSDigital/tailscale-mcp">GitHub</a>
+        <a href="https://www.npmjs.com/package/@tmhs/tailscale-mcp">npm</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div>
+          <h1>Let your AI agent see your tailnet, and change it only when you say so.</h1>
+          <p class="lede">An MCP server for the Tailscale client on your machine. Your agent can list your devices, write SSH config for them, share a dev server with your tailnet, and check which links are direct or relayed. Anything that writes starts as a dry run, and nothing reaches the public internet unless you turn it on.</p>
+          <div class="command">
+            <code id="cc-command">claude mcp add tailscale -- npx -y @tmhs/tailscale-mcp</code>
+            <button class="copy" type="button" data-copy="cc-command">Copy</button>
+          </div>
+          <p class="hero-note">That's the Claude Code command. Other clients are <a href="#install">below</a>.</p>
+        </div>
+
+        <figure class="mesh" id="mesh">
+          <svg viewBox="0 0 520 380" role="img" aria-labelledby="mesh-title mesh-desc">
+            <title id="mesh-title">Example ping_all result</title>
+            <desc id="mesh-desc">devpc reaches raspi directly in 3 milliseconds, reaches nas directly in 9 milliseconds, reaches exitbox through the Frankfurt DERP relay in 41 milliseconds, and phone is offline.</desc>
+            <path class="link direct" style="--len:205;--delay:150ms" d="M260 190 L 92 74"/>
+            <path class="link relay" style="--len:0;--delay:420ms" d="M260 190 L 438 92"/>
+            <path class="link direct" style="--len:198;--delay:260ms" d="M260 190 L 430 290"/>
+            <path class="link off" style="--len:0;--delay:600ms" d="M260 190 L 96 302"/>
+
+            <!-- Each latency label sits on the clear side of its link. -->
+            <text class="lat direct" style="--delay:150ms" x="190" y="118">3 ms direct</text>
+            <text class="lat relay" style="--delay:420ms" x="358" y="160">41 ms via DERP</text>
+            <text class="lat direct" style="--delay:260ms" x="352" y="222">9 ms direct</text>
+            <text class="lat off" style="--delay:600ms" x="168" y="232" text-anchor="end">offline</text>
+
+            <!-- Name above and detail below: the only directions no link uses. -->
+            <g class="node self"><circle cx="260" cy="190" r="16"/><text class="name" x="260" y="160" text-anchor="middle">devpc</text><text class="detail" x="260" y="238" text-anchor="middle">this machine</text></g>
+            <g class="node"><circle cx="92" cy="74" r="11"/><text class="name" x="72" y="46">raspi</text><text class="detail" x="72" y="30">100.101.1.20</text></g>
+            <g class="node"><circle cx="438" cy="92" r="11"/><text class="name" x="404" y="62">exitbox</text><text class="detail" x="404" y="44">exit node</text></g>
+            <g class="node"><circle cx="430" cy="290" r="11"/><text class="name" x="410" y="326">nas</text><text class="detail" x="410" y="344">tag:server</text></g>
+            <g class="node off"><circle cx="96" cy="302" r="11"/><text class="name" x="60" y="338">phone</text><text class="detail" x="60" y="356">last seen 2 days ago</text></g>
+          </svg>
+          <figcaption>
+            A <code>ping_all</code> result, drawn. The matrix tells your agent which devices answer and whether each link is a fast direct path or relayed.
+            <ul class="legend" aria-hidden="true">
+              <li><svg viewBox="0 0 28 6"><path d="M2 3H26" stroke="var(--direct)" stroke-width="3" stroke-linecap="round"/></svg>Direct</li>
+              <li><svg viewBox="0 0 28 6"><path d="M2 3H26" stroke="var(--relay)" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 7"/></svg>Relayed</li>
+              <li><svg viewBox="0 0 28 6"><path d="M2 3H26" stroke="var(--offline)" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/></svg>Offline</li>
+            </ul>
+          </figcaption>
+        </figure>
+      </div>
+
+      <section id="install" aria-labelledby="install-title">
+        <h2 id="install-title">Install</h2>
+        <p class="section-intro">The server runs locally over stdio and talks to the <code>tailscale</code> CLI that's already on your machine. There's no account, API key, or daemon to set up.</p>
+        <div class="clients">
+          <div class="client">
+            <h3>Claude Code</h3>
+            <p>Run once in your terminal.</p>
+            <pre><code>claude mcp add tailscale -- npx -y @tmhs/tailscale-mcp</code></pre>
+          </div>
+          <div class="client">
+            <h3>Claude Desktop and Cursor</h3>
+            <p>Add to <code>claude_desktop_config.json</code> or <code>~/.cursor/mcp.json</code>, then restart the app.</p>
+<pre><code>{
+  "mcpServers": {
+    "tailscale": {
+      "command": "npx",
+      "args": ["-y", "@tmhs/tailscale-mcp"]
+    }
+  }
+}</code></pre>
+          </div>
+          <div class="client">
+            <h3>VS Code</h3>
+            <p>Add to <code>.vscode/mcp.json</code> in your workspace.</p>
+<pre><code>{
+  "servers": {
+    "tailscale": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@tmhs/tailscale-mcp"]
+    }
+  }
+}</code></pre>
+          </div>
+          <div class="client">
+            <h3>Turn on public sharing</h3>
+            <p>Only if you want <code>share_port</code> to be able to expose a port to the open internet with Funnel. Add this to the server's entry in any of the configs above.</p>
+<pre><code>"env": { "TAILSCALE_MCP_ALLOW_FUNNEL": "1" }</code></pre>
+          </div>
+        </div>
+        <p class="requirements">Requires Node 22 or newer and a Tailscale client that's installed and logged in. On macOS the CLI is found inside Tailscale.app automatically. All settings are listed in the <a href="https://github.com/TMHSDigital/tailscale-mcp#configuration-reference">configuration reference</a>.</p>
+      </section>
+
+      <section id="tools" aria-labelledby="tools-title">
+        <h2 id="tools-title">Tools</h2>
+        <p class="section-intro">Six tools, each labeled with what it can change. MCP clients read the same labels, so they can run status checks without asking and confirm anything that changes your machine.</p>
+        <table class="tools-table">
+          <thead><tr><th scope="col">Tool</th><th scope="col">What it does</th><th scope="col">Effect</th></tr></thead>
+          <tbody id="tools-body">
+            <tr><td colspan="3" class="tools-status">The tool list is loaded from <a href="mcp-tools.json">mcp-tools.json</a>, the same definitions the server sends to your client.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="safety" aria-labelledby="safety-title">
+        <h2 id="safety-title">What it will and won't do</h2>
+        <p class="section-intro">Your agent acts with your machine's Tailscale access, so the limits are enforced in code, not left to a warning in the prompt.</p>
+        <dl class="guarantees">
+          <div>
+            <dt>Writes start as dry runs</dt>
+            <dd><code>generate_ssh_config</code> returns the config text and writes nothing until asked. Edits to <code>~/.ssh/config</code> stay between its own markers, keep a backup, and stop if the markers look damaged.</dd>
+          </div>
+          <div class="danger">
+            <dt>Funnel stays off until you turn it on</dt>
+            <dd>Sharing a port defaults to your tailnet only. Exposing it to the open internet is refused unless you set <code>TAILSCALE_MCP_ALLOW_FUNNEL=1</code> yourself, so a prompt-injected agent can't do it.</dd>
+          </div>
+          <div>
+            <dt>It only stops what you name</dt>
+            <dd><code>stop_share</code> needs an explicit target and reports what it removed. It can stop just the shares it created. Wiping every share takes <code>all: true</code>.</dd>
+          </div>
+          <div>
+            <dt>No credentials, ever</dt>
+            <dd>It never reads or stores auth keys or tokens. It only uses the access your logged-in Tailscale client already has.</dd>
+          </div>
+          <div>
+            <dt>Every call has a deadline</dt>
+            <dd>A hung daemon returns a timeout error instead of stalling your agent. <code>ping_all</code> returns partial results after 45 seconds.</dd>
+          </div>
+          <div>
+            <dt>Errors say how to fix them</dt>
+            <dd>Not logged in, daemon stopped, CLI missing, Serve not enabled: each comes back with a code and the exact command or setting that fixes it.</dd>
+          </div>
+        </dl>
+        <p class="requirements">Need an agent that can only look? <code>TAILSCALE_MCP_READONLY=1</code> removes the share tools entirely.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p><a href="https://github.com/TMHSDigital/tailscale-mcp">Source on GitHub</a>, <a href="https://github.com/TMHSDigital/tailscale-mcp/blob/main/CHANGELOG.md">changelog</a>, and <a href="https://github.com/TMHSDigital/tailscale-mcp/issues">issues</a>. Licensed CC-BY-NC-ND-4.0.</p>
+      <p>An independent project by TMHSDigital. Not affiliated with or endorsed by Tailscale Inc.</p>
+    </footer>
+  </div>
+
+  <script>
+    // Copy buttons.
+    document.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const text = document.getElementById(button.dataset.copy).textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          button.textContent = "Copied";
+        } catch {
+          button.textContent = "Select and copy";
+        }
+        setTimeout(() => (button.textContent = "Copy"), 1800);
+      });
+    });
+
+    // Start the mesh animation (CSS skips it under prefers-reduced-motion).
+    document.getElementById("mesh").classList.add("animate");
+
+    // Tools table, rendered from the deployed mcp-tools.json so it matches
+    // exactly what the server advertises.
+    (async () => {
+      const body = document.getElementById("tools-body");
+      try {
+        const res = await fetch("mcp-tools.json");
+        if (!res.ok) throw new Error(res.status);
+        const tools = await res.json();
+        const effect = (a = {}) =>
+          a.destructiveHint ? ["destructive", "Can remove shares"]
+          : a.readOnlyHint ? ["read", "Read-only"]
+          : ["changes", "Changes config"];
+        const summary = (d) => d.split(/(?<=\.)\s/)[0];
+        body.replaceChildren(...tools.map((t) => {
+          const row = document.createElement("tr");
+          const [kind, label] = effect(t.annotations);
+          const cells = [
+            ["span", "title", t.title || t.name],
+            ["code", "name", t.name],
+          ];
+          const nameCell = document.createElement("td");
+          for (const [tag, cls, text] of cells) {
+            const el = document.createElement(tag);
+            el.className = cls;
+            el.textContent = text;
+            nameCell.append(el);
+          }
+          const desc = document.createElement("td");
+          desc.textContent = summary(t.description);
+          const eff = document.createElement("td");
+          const badge = document.createElement("span");
+          badge.className = `effect ${kind}`;
+          badge.textContent = label;
+          eff.append(badge);
+          row.append(nameCell, desc, eff);
+          return row;
+        }));
+      } catch {
+        body.querySelector(".tools-status").textContent =
+          "The tool list couldn't be loaded here. See mcp-tools.json in the repository.";
+      }
+    })();
+  </script>
 </body>
 </html>
