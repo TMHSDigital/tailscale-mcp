@@ -197,21 +197,34 @@ An agent asked to "deploy this to my dev VPS and show me the result" can do the 
 
 ```bash
 npm install
-npm run build     # tsc
-npm test          # vitest, fully offline (fixture-driven, no live tailnet)
-npm run typecheck
+npm run build      # tsc
+npm test           # vitest, fully offline (fixture-driven, no live tailnet)
+npm run typecheck  # src and tests
+npm run gen:tools  # regenerate mcp-tools.json after changing a tool
 ```
 
-Provider adapter pattern: `src/providers/types.ts` defines the `TailscaleProvider` interface; `CliProvider` (the only v0.1 implementation) spawns the CLI through an injectable process runner so tests never launch a real binary. The interface leaves room for a future LocalAPI provider speaking HTTP over the local socket or named pipe.
+To try your build against your own tailnet, run it in the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
+```bash
+npm run build
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+Provider adapter pattern: `src/providers/types.ts` defines the `TailscaleProvider` interface; `CliProvider` (the only implementation today) spawns the CLI through an injectable process runner so tests never launch a real binary. The interface leaves room for a future LocalAPI provider speaking HTTP over the local socket or named pipe.
 
 ## Project Structure
 
 ```
 tailscale-mcp/
-  src/                Source code
+  src/index.ts        stdio entry point
+  src/config.ts       Environment variable parsing
   src/providers/      TailscaleProvider interface + CliProvider
-  src/tools/          MCP tool registrations
-  test/fixtures/      Sanitized CLI output captured from a real tailnet
+  src/tools/          MCP tool registrations and output schemas
+  src/sshconfig.ts    Pure ssh-config rendering and managed-block editing
+  src/__tests__/      vitest suites (offline, mocked CLI runner)
+  test/fixtures/      Sanitized CLI output used by the tests
+  mcp-tools.json      Generated tool definitions (npm run gen:tools)
+  docs/               GitHub Pages site
   .github/            CI/CD workflows
 ```
 

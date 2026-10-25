@@ -8,11 +8,12 @@ This file tells AI coding agents how the Tailscale MCP repo works and how to con
 
 This is an MCP server. It contains:
 
-- **`src/`** -- TypeScript source code
-- **`src/providers/`** -- provider adapters implementing the `Provider` interface, wired into `ProviderManager`
-- **`src/tools/`** -- the registered MCP tools (stdio transport only)
+- **`src/`** -- TypeScript source code (`src/index.ts` is the stdio entry point, `src/config.ts` parses env vars)
+- **`src/providers/`** -- provider adapters implementing the `TailscaleProvider` interface (`types.ts`); `CliProvider` is the only one and is constructed in `src/index.ts`
+- **`src/tools/`** -- the registered MCP tools (stdio transport only), registered with `registerTool` plus annotations and output schemas (`schemas.ts`)
+- **`src/__tests__/`** -- vitest suites; offline, with a mocked CLI runner
 - **`package.json`** -- npm package manifest (version source of truth)
-- **`mcp-tools.json`** -- enumerates the MCP tools this server exposes
+- **`mcp-tools.json`** -- generated from the registered tools (`npm run gen:tools`); never edit by hand
 - **`docs/`** -- documentation and GitHub Pages site
 - **`CHANGELOG.md`** -- release history
 
@@ -29,9 +30,12 @@ This is an MCP server. It contains:
 
 ### `ci.yml` (runs on PR and push to main)
 
-Builds and runs the test suite on Node 20 and 22:
+Runs on Node 22 and 24 (Linux), plus Node 24 on Windows and macOS:
+- Typecheck of src and tests (`npm run typecheck`)
 - TypeScript build (`npm run build`)
-- Test suite (`npm test`, vitest, offline)
+- Test suite (`npm test`, vitest, offline), which includes the `mcp-tools.json` drift check
+
+A separate job runs `npm audit --omit=dev --audit-level=high`.
 
 ### `release.yml` (runs on push to main)
 
@@ -39,7 +43,7 @@ Reads the version from `package.json` and, if there is no matching tag yet, push
 
 ### `publish.yml` (runs on release published or workflow_dispatch)
 
-Publishes the package to npm.
+Publishes the package to npm through trusted publishing (OIDC, no token) with provenance, using a pinned npm. It is idempotent: it skips a version that is already published.
 
 ### `drift-check.yml`
 
@@ -47,20 +51,22 @@ Checks this repo against the ecosystem standards for drift.
 
 ### `pages.yml` (deploys docs/ to GitHub Pages)
 
-Builds and deploys the documentation site on push to main.
+Deploys `docs/` on push to main.
 
 ### `stale.yml`
 
-Marks issues/PRs as stale after 30 days of inactivity.
+Weekly. Tracked issues (bug, feature, enhancement, security-hardening, P1/P2, milestones) never go stale; others go stale after 90 days, PRs after 30. See CONTRIBUTING.md.
 
 ### `label-sync.yml`
 
-Keeps repository labels in sync.
+Labels PRs by changed paths (`code`, `tests`, `documentation`, `ci`). Runs on `pull_request_target` and never checks out PR code.
+
+All `uses:` references are pinned to commit SHAs with a version comment; keep it that way when adding steps.
 
 ## Version management
 
 - The **source of truth** for the current version is `package.json`.
-- Bump it in your PR with `npm version <patch|minor|major> --no-git-tag-version` (keeps the lockfile in sync) and update the README badge, following conventional-commit intent.
+- Bump it in your PR with `npm version <patch|minor|major> --no-git-tag-version` (keeps the lockfile in sync), following conventional-commit intent. The README's npm badge is dynamic, so it needs no edit.
 - On merge, `release.yml` tags that version and publishes it. `main` is protected and is never written to by CI.
 
 ## Code conventions
@@ -73,13 +79,14 @@ Keeps repository labels in sync.
 
 ### New provider adapter
 
-1. Implement the `Provider` interface in `src/providers/`
-2. Register the adapter in `ProviderManager`
-3. Use `feat:` commit prefix
+1. Implement the `TailscaleProvider` interface (`src/providers/types.ts`) in `src/providers/`
+2. Construct it in `src/index.ts` and pass it to `registerAll`
+3. Inject process/network access so tests stay offline
+4. Use `feat:` commit prefix
 
 ### New tool
 
-1. Register the tool in `src/tools/`
+1. Register the tool in `src/tools/` with `server.registerTool`, including a `title`, all four annotation hints, and an `outputSchema` (in `schemas.ts`)
 2. Regenerate `mcp-tools.json` with `npm run gen:tools`
 3. Add vitest tests
 4. Use `feat:` commit prefix
