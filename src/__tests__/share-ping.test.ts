@@ -3,13 +3,16 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CliProvider, CliResult } from "../providers/cli.js";
-import { registerAll } from "../tools/index.js";
+import { registerAll, type ToolContext } from "../tools/index.js";
 import { boundedMap, PING_CONCURRENCY } from "../tools/ping.js";
 import { fixture, mockRunner, okResult, payload, RunnerCall } from "./support.js";
 
-async function connectedClient(provider: CliProvider): Promise<Client> {
+async function connectedClient(
+  provider: CliProvider,
+  overrides: Partial<ToolContext> = {},
+): Promise<Client> {
   const server = new McpServer({ name: "test", version: "0.0.0" });
-  registerAll(server, { provider });
+  registerAll(server, { provider, ...overrides });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -43,20 +46,41 @@ describe("share_port", () => {
     }
   });
 
-  it("public=true uses funnel and flags the open-internet scope", async () => {
-    const calls: RunnerCall[] = [];
-    const client = await connectedClient(
-      new CliProvider({
-        runner: mockRunner(
-          {
-            funnel: okResult(
-              "Available on the internet:\n\nhttps://devpc.tail1234.ts.net/\n|-- proxy http://127.0.0.1:3000\n",
-            ),
-          },
-          calls,
+  function funnelRunner(calls: RunnerCall[]) {
+    return mockRunner(
+      {
+        funnel: okResult(
+          "Available on the internet:\n\nhttps://devpc.tail1234.ts.net/\n|-- proxy http://127.0.0.1:3000\n",
         ),
-      }),
+      },
+      calls,
     );
+  }
+
+  it("denies public=true by default without invoking the CLI", async () => {
+    const calls: RunnerCall[] = [];
+    const client = await connectedClient(new CliProvider({ runner: funnelRunner(calls) }));
+    const result = await client.callTool({
+      name: "share_port",
+      arguments: { port: 3000, public: true },
+    });
+    expect(result.isError).toBe(true);
+    const err = payload(result).error;
+    expect(err.code).toBe("FUNNEL_DISABLED");
+    expect(err.remedy).toContain("TAILSCALE_MCP_ALLOW_FUNNEL=1");
+    expect(calls).toHaveLength(0);
+
+    const tools = await client.listTools();
+    expect(tools.tools.find((t) => t.name === "share_port")?.description).toMatch(
+      /Funnel is DISABLED/,
+    );
+  });
+
+  it("public=true uses funnel and flags the open-internet scope when allowed", async () => {
+    const calls: RunnerCall[] = [];
+    const client = await connectedClient(new CliProvider({ runner: funnelRunner(calls) }), {
+      allowFunnel: true,
+    });
     const result = await client.callTool({
       name: "share_port",
       arguments: { port: 3000, public: true },
@@ -65,6 +89,14 @@ describe("share_port", () => {
     expect(data.public).toBe(true);
     expect(data.scope).toContain("OPEN INTERNET");
     expect(calls[0].args[0]).toBe("funnel");
+  });
+
+  it("read-only mode registers no tools that change the serve config", async () => {
+    const client = await connectedClient(new CliProvider({ runner: mockRunner({}) }), {
+      readOnly: true,
+    });
+    const names = (await client.listTools()).tools.map((t) => t.name).sort();
+    expect(names).toEqual(["generate_ssh_config", "ping_all", "share_status", "tailnet_status"]);
   });
 
   it("maps serve-not-enabled to a structured SERVE_NOT_ENABLED error", async () => {

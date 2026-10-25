@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./index.js";
 import { fail, ok } from "./helpers.js";
+import { ALLOW_FUNNEL_ENV_VAR } from "../config.js";
 import { DEFAULT_HTTPS_PORT, TailscaleError, type ServeStatus } from "../providers/types.js";
 
 /**
@@ -43,16 +44,40 @@ export function summarizeServeStatus(status: ServeStatus) {
 const mountKey = (httpsPort: number, path: string) => `${httpsPort}${path}`;
 
 export function register(server: McpServer, ctx: ToolContext): void {
+  server.tool(
+    "share_status",
+    "Report the active Tailscale Serve/Funnel sessions on this node: one entry per " +
+      "endpoint with its URL, serve port, mount path, proxied target, and a public flag " +
+      "that is true when Funnel exposes it to the open internet. publicExposure is " +
+      "true when anything is public.",
+    {},
+    async () => {
+      try {
+        return ok(summarizeServeStatus(await ctx.provider.serveStatus()));
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // Read-only deployments get status only; nothing that changes the config.
+  if (ctx.readOnly) return;
+
   /** Mounts created by share_port in this server session, for stop_share mine=true. */
   const created = new Map<string, { httpsPort: number; path: string }>();
+  const allowFunnel = ctx.allowFunnel === true;
 
   server.tool(
     "share_port",
     "Share a local port over the tailnet via Tailscale Serve (tailnet-only by " +
       "default). WARNING: setting public=true switches to Funnel and exposes the " +
       "port to the OPEN INTERNET — anyone with the URL can reach it. Only set " +
-      "public=true when internet exposure is explicitly intended. Returns the " +
-      "resulting URL(s).",
+      "public=true when internet exposure is explicitly intended. " +
+      (allowFunnel
+        ? ""
+        : `Funnel is DISABLED on this server: public=true returns FUNNEL_DISABLED unless ` +
+          `the user sets ${ALLOW_FUNNEL_ENV_VAR}=1. `) +
+      "Returns the resulting URL(s).",
     {
       port: z.number().int().min(1).max(65535).describe("Local port to share"),
       public: z
@@ -60,7 +85,8 @@ export function register(server: McpServer, ctx: ToolContext): void {
         .optional()
         .describe(
           "Expose to the open internet via Funnel (default: false = tailnet-only Serve). " +
-            "DANGEROUS: public=true makes the port reachable by anyone on the internet.",
+            "DANGEROUS: public=true makes the port reachable by anyone on the internet." +
+            (allowFunnel ? "" : ` Disabled unless ${ALLOW_FUNNEL_ENV_VAR}=1.`),
         ),
       path: mountPath
         .optional()
@@ -68,6 +94,15 @@ export function register(server: McpServer, ctx: ToolContext): void {
     },
     async ({ port, public: isPublic, path }) => {
       try {
+        if (isPublic === true && !allowFunnel) {
+          throw new TailscaleError(
+            "FUNNEL_DISABLED",
+            "Funnel (public internet exposure) is disabled on this server, so nothing was " +
+              "shared. Tailnet-only sharing (public=false) is still available.",
+            `If internet exposure is intended, the user must set ${ALLOW_FUNNEL_ENV_VAR}=1 ` +
+              "in the MCP client config for this server and restart it.",
+          );
+        }
         const result = await ctx.provider.serve({ port, public: isPublic === true, path });
         // share_port never passes --https, so the mount is on the default port.
         created.set(mountKey(DEFAULT_HTTPS_PORT, path ?? "/"), {
@@ -80,22 +115,6 @@ export function register(server: McpServer, ctx: ToolContext): void {
           scope: result.public ? "OPEN INTERNET (Funnel)" : "tailnet-only (Serve)",
           urls: result.urls,
         });
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
-
-  server.tool(
-    "share_status",
-    "Report the active Tailscale Serve/Funnel sessions on this node: one entry per " +
-      "endpoint with its URL, serve port, mount path, proxied target, and a public flag " +
-      "that is true when Funnel exposes it to the open internet. publicExposure is " +
-      "true when anything is public.",
-    {},
-    async () => {
-      try {
-        return ok(summarizeServeStatus(await ctx.provider.serveStatus()));
       } catch (err) {
         return fail(err);
       }

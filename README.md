@@ -53,6 +53,17 @@ The server looks for `tailscale` on `PATH`, then in the platform's default insta
 
 Every `tailscale` invocation is bounded, by default to 10 seconds. A hung daemon returns a structured `TIMEOUT` error instead of stalling the agent. Set `TAILSCALE_MCP_TIMEOUT_MS` to raise the limit for slow machines or very large tailnets. `share_port` waits up to 15 seconds and `ping` scales with `count` and `timeoutMs`; `ping_all` as a whole is capped at 45 seconds.
 
+### Configuration reference
+
+All settings are environment variables in the server's `env` block. Boolean flags accept `1/true/yes/on` or `0/false/no/off`. Any other value stops the server at startup, so a typo can never silently loosen a safety setting.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `TAILSCALE_MCP_ALLOW_FUNNEL` | off | Allows `share_port {"public": true}`, which exposes a port to the **open internet** via Funnel. While off, the call returns `FUNNEL_DISABLED` and nothing is shared. |
+| `TAILSCALE_MCP_READONLY` | off | Monitoring-only mode: `share_port` and `stop_share` are not registered, and `generate_ssh_config` refuses `write: true` (`READ_ONLY`). |
+| `TAILSCALE_MCP_BIN` | (search) | Path to the `tailscale` binary. |
+| `TAILSCALE_MCP_TIMEOUT_MS` | `10000` | Per-call CLI timeout. |
+
 ### Linux: Serve/Funnel permissions
 
 On Linux only root or the configured operator can change Serve/Funnel settings. If `share_port` or `stop_share` returns `PERMISSION_DENIED`, allow your user once:
@@ -105,7 +116,7 @@ Shares a local port via Tailscale Serve. **Tailnet-only by default.** Inputs: `p
 {"port": 3000, "public": false, "scope": "tailnet-only (Serve)", "urls": ["https://devpc.tail1234.ts.net/"]}
 ```
 
-`public: true` switches to Funnel and exposes the port to the open internet. See the security notes below.
+`public: true` switches to Funnel and exposes the port to the open internet. It's refused unless `TAILSCALE_MCP_ALLOW_FUNNEL=1` is set; see the security notes below.
 
 ### share_status
 
@@ -160,12 +171,13 @@ An agent asked to "deploy this to my dev VPS and show me the result" can do the 
 1. `tailnet_status {"onlineOnly": true}` finds the VPS node and its MagicDNS name (`devbox.tail1234.ts.net`), with no hardcoded IPs.
 2. `generate_ssh_config {"write": true, "user": "deploy"}` writes `~/.ssh/tailscale_dev_config`; the agent shows the returned one-line `Include` instruction, and after the user adds it, `ssh devbox` resolves through the tailnet.
 3. `ping_all` confirms the node is reachable and whether the path is direct or relayed before starting a large transfer.
-4. After deploying, `share_port {"port": 8080}` returns a tailnet-only URL teammates on the tailnet can open. Nothing touches the public internet unless the agent is explicitly told to pass `public: true`.
+4. After deploying, `share_port {"port": 8080}` returns a tailnet-only URL teammates on the tailnet can open. Nothing touches the public internet unless you have enabled Funnel with `TAILSCALE_MCP_ALLOW_FUNNEL=1` and the agent is explicitly told to pass `public: true`.
 
 ## Security notes on Funnel
 
 - `share_port` defaults to tailnet-only Serve. Nothing is reachable from outside your tailnet.
-- `public: true` uses Tailscale Funnel: the URL is reachable by **anyone on the internet**, not just your tailnet. The tool description carries this warning so agents surface it before acting.
+- **Funnel is off unless you turn it on.** `public: true` uses Tailscale Funnel, which makes the URL reachable by **anyone on the internet**, not just your tailnet. A default install refuses it with `FUNNEL_DISABLED`, so a prompt-injected agent can't expose a port by itself. To allow it, set `TAILSCALE_MCP_ALLOW_FUNNEL=1` in the client config. Even then the tool description carries the warning, so agents surface it before acting.
+- `TAILSCALE_MCP_READONLY=1` removes the share tools entirely, for agents that should only observe.
 - Serve and Funnel must be enabled per-tailnet in the admin console. When they are not, the tool returns a structured `SERVE_NOT_ENABLED` error containing the exact enablement URL and changes nothing.
 - `stop_share {"all": true}` is the kill switch: it clears the entire serve/funnel configuration. Calling it without arguments never deletes anything.
 - This server never reads or stores `TS_AUTHKEY` or any other credential.
