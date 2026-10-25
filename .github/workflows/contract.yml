@@ -1,0 +1,100 @@
+name: CLI contract
+
+# Weekly check that the parsers still match the CURRENT tailscale release.
+# Tailscale ships every few weeks and its text output is not a stable API, so
+# fixtures alone cannot catch a wording change. A failure opens (or updates)
+# a "cli-drift" issue.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each runner leaves the daemon in a different state, so together they
+        # exercise different parsing paths: Linux and Windows run the service
+        # but are not logged in (NeedsLogin/NoState); Homebrew on macOS
+        # installs the CLI without starting tailscaled (daemon-not-running).
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Install the latest Tailscale (Linux)
+        if: runner.os == 'Linux'
+        run: curl -fsSL https://tailscale.com/install.sh | sh
+      - name: Install the latest Tailscale (macOS)
+        if: runner.os == 'macOS'
+        run: brew install tailscale
+      - name: Install the latest Tailscale (Windows)
+        if: runner.os == 'Windows'
+        run: choco install tailscale -y --no-progress
+
+      - run: npm run test:contract
+
+  # Optional: the same suite on an ephemeral node joined to a CI tailnet, which
+  # adds the running-state checks and the serve round trip. Enable by setting
+  # the repository variable TS_CONTRACT_TAILNET=true and the secrets
+  # TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET (an OAuth client with the auth_keys
+  # scope, restricted to tag:ci).
+  contract-tailnet:
+    name: contract (ubuntu, joined to CI tailnet)
+    if: vars.TS_CONTRACT_TAILNET == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: latest
+      - run: npm run test:contract
+        env:
+          # The node is ephemeral, so the suite may change its Serve config.
+          TAILSCALE_CONTRACT_MUTATE: "1"
+
+  report-drift:
+    name: Report CLI drift
+    needs: [contract, contract-tailnet]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the drift issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create cli-drift --color B60205 \
+            --description "The tailscale CLI output no longer matches the parsers" 2>/dev/null || true
+          body="The weekly contract run against the latest tailscale release failed: $RUN_URL
+
+          Check which OS and test failed in the run log (it prints the tailscale version), then update the parser in src/providers/cli.ts and add a fixture for the new output."
+          existing=$(gh issue list --label cli-drift --state open --json number -q '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "CLI output drift detected by the weekly contract run" \
+              --label cli-drift --label bug --body "$body"
+          fi

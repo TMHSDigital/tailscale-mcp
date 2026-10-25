@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "gen:tools": "vitest run src/__tests__/tools-manifest.test.ts -u",
     "test:packed": "node scripts/smoke-packed.mjs",
+    "test:contract": "vitest run --config vitest.contract.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "prepublishOnly": "npm run build"
   },
