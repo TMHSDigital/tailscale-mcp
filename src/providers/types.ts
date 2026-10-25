@@ -55,16 +55,30 @@ export interface PingOptions {
   count?: number;
   /** Per-attempt timeout in milliseconds. */
   timeoutMs?: number;
+  /** Cancels the ping (the process is killed and TIMEOUT is thrown). */
+  signal?: AbortSignal;
 }
+
+/**
+ * How a reply travelled: "direct" peer-to-peer, relayed through a Tailscale
+ * "derp" server, relayed through a "peer-relay" node, or "unknown" (e.g.
+ * TSMP/ICMP ping types that do not report a path).
+ */
+export type PingPath = "direct" | "derp" | "peer-relay" | "unknown";
 
 export interface PingResult {
   target: string;
   reachable: boolean;
+  /** Latency of the last reply, i.e. on the settled path. */
   latencyMs: number | null;
-  /** "direct" when a peer-to-peer path was used, "derp" when relayed. */
-  path: "direct" | "derp" | null;
-  /** The endpoint or DERP region the reply came through. */
+  /** Path of the last reply; null when unreachable. */
+  path: PingPath | null;
+  /** The endpoint, DERP region, or peer relay the last reply came through. */
   via: string | null;
+  /** Pings sent (replies plus timed-out attempts). */
+  attempts: number;
+  /** Replies received. */
+  replies: number;
   /** Raw CLI output, for diagnostics. */
   raw: string;
 }
@@ -111,6 +125,7 @@ export type TailscaleErrorCode =
   | "NEEDS_LOGIN"
   | "SERVE_NOT_ENABLED"
   | "PERMISSION_DENIED"
+  | "TIMEOUT"
   | "SSH_CONFIG_MARKERS_CORRUPT"
   | "SSH_CONFIG_UNREADABLE"
   | "CLI_ERROR";

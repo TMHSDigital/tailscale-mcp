@@ -49,6 +49,10 @@ The server looks for `tailscale` on `PATH`, then in the platform's default insta
 }
 ```
 
+### Timeouts
+
+Every `tailscale` invocation is bounded, by default to 10 seconds. A hung daemon returns a structured `TIMEOUT` error instead of stalling the agent. Set `TAILSCALE_MCP_TIMEOUT_MS` to raise the limit for slow machines or very large tailnets. `share_port` waits up to 15 seconds and `ping` scales with `count` and `timeoutMs`; `ping_all` as a whole is capped at 45 seconds.
+
 ### Linux: Serve/Funnel permissions
 
 On Linux only root or the configured operator can change Serve/Funnel settings. If `share_port` or `stop_share` returns `PERMISSION_DENIED`, allow your user once:
@@ -115,20 +119,21 @@ Mount paths must start with `/` and use only letters, digits, and `. _ ~ - /`, w
 
 ### ping_all
 
-Concurrent `tailscale ping` against peers (bounded to 5 in flight, one ping each with a timeout). Inputs: `count`, `timeoutMs`, `onlineOnly` (default true).
+Concurrent `tailscale ping` against peers (bounded to 5 in flight, with a per-ping timeout). Inputs: `count`, `timeoutMs`, `onlineOnly` (default true).
 
 ```json
 {
   "pinged": 2,
   "reachable": 1,
+  "timedOut": false,
   "matrix": [
-    {"hostname": "raspi", "target": "100.101.1.20", "reachable": true, "latencyMs": 3, "path": "direct", "via": "192.168.1.20:41641"},
-    {"hostname": "exitbox", "target": "100.101.1.40", "reachable": false, "latencyMs": null, "path": null, "via": null}
+    {"hostname": "raspi", "target": "100.101.1.20", "reachable": true, "latencyMs": 3, "path": "direct", "via": "192.168.1.20:41641", "attempts": 3, "replies": 3},
+    {"hostname": "exitbox", "target": "100.101.1.40", "reachable": false, "latencyMs": null, "path": null, "via": null, "attempts": 1, "replies": 0}
   ]
 }
 ```
 
-`path` distinguishes a direct peer-to-peer connection from a DERP relay, so an agent can tell "works but relayed" from "fast direct path".
+`path` is `direct` (peer-to-peer), `derp` (relayed through a Tailscale DERP server), `peer-relay` (relayed through one of your nodes), or `unknown`, so an agent can tell "works but relayed" from "fast direct path". `tailscale ping` keeps pinging until a direct path comes up, so `path` and `latencyMs` describe the last reply, i.e. the settled path. The whole call is capped at 45 seconds: peers that haven't answered by then come back with an `error` and `timedOut: true`.
 
 ## Agentic workflow example
 
