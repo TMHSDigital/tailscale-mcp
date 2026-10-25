@@ -73,6 +73,7 @@ interface RawNode {
   ExitNode?: boolean;
   ExitNodeOption?: boolean;
   Tags?: string[];
+  ShareeNode?: boolean;
 }
 
 interface RawStatus {
@@ -99,6 +100,7 @@ function toNode(raw: RawNode): TailscaleNode {
     exitNode: raw.ExitNode ?? false,
     exitNodeOption: raw.ExitNodeOption ?? false,
     tags: raw.Tags ?? [],
+    sharee: raw.ShareeNode ?? false,
   };
 }
 

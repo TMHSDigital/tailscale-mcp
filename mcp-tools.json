@@ -32,6 +32,10 @@
           "type": "boolean",
           "description": "Only include peers that are currently online (default: false)"
         },
+        "includeShared": {
+          "type": "boolean",
+          "description": "Include nodes of users this node is shared with (default: false). Mullvad exit nodes are always skipped."
+        },
         "user": {
           "type": "string",
           "description": "Remote user to set on every Host block"

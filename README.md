@@ -54,10 +54,12 @@ Trimmed view of `tailscale status --json`: self node plus peers with hostname, M
 
 ### generate_ssh_config
 
-Emits ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). **Dry-run by default**: returns the generated text only. Inputs: `write`, `target`, `onlineOnly`, `user`.
+Emits ssh-config Host blocks for tailnet nodes (MagicDNS name preferred, Tailscale IP fallback). **Dry-run by default**: returns the generated text only. Inputs: `write`, `target`, `onlineOnly`, `includeShared`, `user`.
 
+- Each `Host` alias is the node's first MagicDNS label (`raspi.tail1234.ts.net` → `raspi`), falling back to a sanitized OS hostname (`[a-z0-9-]` only). Colliding aliases get a numeric suffix and are listed under `renamed`. Mullvad exit nodes, and nodes of users you share with (unless `includeShared: true`), are left out and listed under `skipped`.
 - `write: true` writes the dedicated file `~/.ssh/tailscale_dev_config` and returns the `Include tailscale_dev_config` instruction for `~/.ssh/config` (never applied automatically).
-- `target: "user_ssh_config"` (with `write: true`) edits `~/.ssh/config` directly, idempotently, between `# BEGIN tailscale-mcp` and `# END tailscale-mcp` markers. Content outside the markers is never touched.
+- `target: "user_ssh_config"` (with `write: true`) edits `~/.ssh/config` directly, idempotently, between `# BEGIN tailscale-mcp` and `# END tailscale-mcp` markers. Content outside the markers is never touched. If the markers are malformed (orphaned, reversed, or duplicated) the tool returns `SSH_CONFIG_MARKERS_CORRUPT` and writes nothing.
+- Writes are atomic (temp file + rename), the previous `~/.ssh/config` is kept as `config.tailscale-mcp.bak`, new files are created `0600` (existing modes are kept), and a symlinked config is written through rather than replaced.
 
 ```json
 {

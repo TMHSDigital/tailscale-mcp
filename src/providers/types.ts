@@ -27,6 +27,11 @@ export interface TailscaleNode {
   /** True when the node offers itself as an exit node. */
   exitNodeOption: boolean;
   tags: string[];
+  /**
+   * True when the node is in the netmap only because it belongs to a user
+   * this node is shared with (it may connect to us, but is not ours).
+   */
+  sharee: boolean;
 }
 
 export interface TailnetStatus {
@@ -98,6 +103,8 @@ export type TailscaleErrorCode =
   | "DAEMON_NOT_RUNNING"
   | "NEEDS_LOGIN"
   | "SERVE_NOT_ENABLED"
+  | "SSH_CONFIG_MARKERS_CORRUPT"
+  | "SSH_CONFIG_UNREADABLE"
   | "CLI_ERROR";
 
 /**
