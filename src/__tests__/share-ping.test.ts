@@ -121,6 +121,45 @@ describe("share_status / stop_share", () => {
     await client.callTool({ name: "stop_share", arguments: { httpsPort: 443 } });
     expect(calls[0].args).toEqual(["serve", "--https=443", "off"]);
   });
+
+  it("round-trips a path-mounted share: share_port at /api, stop_share removes just /api", async () => {
+    const calls: RunnerCall[] = [];
+    const client = await connectedClient(
+      new CliProvider({
+        runner: mockRunner(
+          { serve: okResult("Available within your tailnet:\n\nhttps://devpc.tail1234.ts.net/api\n") },
+          calls,
+        ),
+      }),
+    );
+    await client.callTool({ name: "share_port", arguments: { port: 3000, path: "/api/" } });
+    expect(calls[0].args).toEqual(["serve", "--bg", "--set-path=/api", "3000"]);
+
+    const data = payload(
+      await client.callTool({ name: "stop_share", arguments: { path: "/api" } }),
+    );
+    expect(calls[1].args).toEqual(["serve", "--https=443", "--set-path=/api", "off"]);
+    expect(data.stopped).toEqual({ httpsPort: 443, path: "/api" });
+  });
+
+  it.each(["api", "", "/has space", "/q?x=1", "/../etc"])(
+    "rejects invalid mount path %j at the schema without running the CLI",
+    async (path) => {
+      const calls: RunnerCall[] = [];
+      const client = await connectedClient(
+        new CliProvider({ runner: mockRunner({}, calls) }),
+      );
+      for (const name of ["share_port", "stop_share"]) {
+        const result = await client.callTool({
+          name,
+          arguments: name === "share_port" ? { port: 3000, path } : { path },
+        });
+        // Either the SDK rejects the call (isError) or validation throws.
+        expect(result.isError).toBe(true);
+      }
+      expect(calls).toHaveLength(0);
+    },
+  );
 });
 
 describe("ping_all", () => {

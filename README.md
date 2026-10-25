@@ -109,7 +109,9 @@ Reports active Serve/Funnel sessions: `{"active": false, "status": "No serve con
 
 ### stop_share
 
-Without arguments clears the entire serve/funnel configuration. With `httpsPort` it turns off one HTTPS endpoint (the serve port shown in `share_status`, typically 443, not the proxied local port).
+Without arguments clears the entire serve/funnel configuration. With `httpsPort` and/or `path` it turns off one mount: `httpsPort` is the serve port shown in `share_status` (default 443, not the proxied local port), and `path` is the mount path given to `share_port` (default `/`). For example, `{"path": "/api"}` undoes `share_port {"port": 3000, "path": "/api"}`.
+
+Mount paths must start with `/` and use only letters, digits, and `. _ ~ - /`, with no `.` or `..` segments. A trailing slash is dropped.
 
 ### ping_all
 

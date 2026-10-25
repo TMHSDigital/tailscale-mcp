@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import {
   BackendState,
+  DEFAULT_HTTPS_PORT,
   PingOptions,
   PingResult,
   ServeOptions,
@@ -351,9 +352,16 @@ export class CliProvider implements TailscaleProvider {
     return result.stdout.trim();
   }
 
-  async serveReset(port?: number): Promise<string> {
+  async serveReset(port?: number, path?: string): Promise<string> {
     const args =
-      port === undefined ? ["serve", "reset"] : ["serve", `--https=${port}`, "off"];
+      port === undefined && path === undefined
+        ? ["serve", "reset"]
+        : [
+            "serve",
+            `--https=${port ?? DEFAULT_HTTPS_PORT}`,
+            ...(path && path !== "/" ? [`--set-path=${path}`] : []),
+            "off",
+          ];
     const result = await this.run(args);
     if (result.status !== 0) throw this.failFromCli(result, "serve reset");
     return result.stdout.trim() || "serve configuration cleared";

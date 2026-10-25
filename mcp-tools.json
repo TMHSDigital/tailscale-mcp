@@ -52,7 +52,7 @@
       "properties": {
         "port": {"type": "number", "description": "Local port to share"},
         "public": {"type": "boolean", "description": "Expose to the open internet via Funnel (default: false = tailnet-only Serve). DANGEROUS."},
-        "path": {"type": "string", "description": "HTTPS mount path on the serve endpoint (default: \"/\")"}
+        "path": {"type": "string", "pattern": "^\\/[A-Za-z0-9._~\\-/]*$", "description": "HTTPS mount path on the serve endpoint, e.g. \"/api\" (default: \"/\")"}
       },
       "required": ["port"]
     }
@@ -64,11 +64,12 @@
   },
   {
     "name": "stop_share",
-    "description": "Stop sharing. Without arguments clears the entire serve/funnel configuration; with httpsPort it turns off just that HTTPS serve endpoint.",
+    "description": "Stop sharing. Without arguments clears the entire serve/funnel configuration; with httpsPort and/or path it turns off just that mount.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "httpsPort": {"type": "number", "description": "HTTPS serve port to turn off (as shown in share_status). Omit to clear everything."}
+        "httpsPort": {"type": "number", "description": "HTTPS serve port to turn off (as shown in share_status; default 443 when path is given). Omit both httpsPort and path to clear everything."},
+        "path": {"type": "string", "pattern": "^\\/[A-Za-z0-9._~\\-/]*$", "description": "Mount path to turn off, as passed to share_port (default: \"/\")"}
       },
       "required": []
     }

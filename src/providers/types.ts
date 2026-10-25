@@ -69,6 +69,9 @@ export interface PingResult {
   raw: string;
 }
 
+/** The HTTPS port Serve/Funnel use when none is given. */
+export const DEFAULT_HTTPS_PORT = 443;
+
 export interface ServeOptions {
   /** Local port to share. */
   port: number;
@@ -90,7 +93,11 @@ export interface TailscaleProvider {
   ping(target: string, opts?: PingOptions): Promise<PingResult>;
   serve(opts: ServeOptions): Promise<ServeResult>;
   serveStatus(): Promise<string>;
-  serveReset(port?: number): Promise<string>;
+  /**
+   * With no arguments, clear the entire serve config. Otherwise turn off the
+   * mount at `path` (default "/") on HTTPS port `port` (default 443).
+   */
+  serveReset(port?: number, path?: string): Promise<string>;
   version(): Promise<TailscaleVersion>;
 }
 
